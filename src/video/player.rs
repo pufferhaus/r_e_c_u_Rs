@@ -115,6 +115,21 @@ impl Player {
         self.last_position = 0.0;
     }
 
+    /// Pull the most recent decoded RGBA frame from the appsink, if one is
+    /// available right now. Returns `None` when no sample is ready or the
+    /// pipeline is not in a playing/paused state.
+    pub fn pull_latest_rgba(&self) -> Option<(Vec<u8>, u32, u32)> {
+        let appsink = self.appsink.as_ref()?;
+        let sample = appsink.try_pull_sample(gst::ClockTime::ZERO)?;
+        let buffer = sample.buffer()?;
+        let caps = sample.caps()?;
+        let s = caps.structure(0)?;
+        let w: i32 = s.get("width").ok()?;
+        let h: i32 = s.get("height").ok()?;
+        let map = buffer.map_readable().ok()?;
+        Some((map.as_slice().to_vec(), w as u32, h as u32))
+    }
+
     fn seek_to_start(&mut self) {
         let Some(p) = &self.pipeline else { return };
         let Some(slot) = &self.slot else { return };
@@ -174,5 +189,40 @@ mod tests {
             std::thread::sleep(std::time::Duration::from_millis(10));
         }
         panic!("never reached Loaded, ended at {:?}", p.status);
+    }
+
+    #[test]
+    #[ignore] // requires gst plugins + bundled clip
+    fn pulls_an_rgba_frame_after_load() {
+        init_gst();
+        let mut p = Player::empty(0);
+        let slot = Slot {
+            location: test_clip(),
+            name: "test_smpte.mp4".into(),
+            start: -1.0,
+            end: -1.0,
+            length: 0.0,
+            rate: 1.0,
+        };
+        p.try_load(slot).unwrap();
+        for _ in 0..200 {
+            p.tick();
+            if p.status == PlayerStatus::Loaded {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        p.play();
+        for _ in 0..200 {
+            p.tick();
+            if let Some((rgba, w, h)) = p.pull_latest_rgba() {
+                assert_eq!(rgba.len(), (w * h * 4) as usize);
+                assert_eq!(w, 720);
+                assert_eq!(h, 480);
+                return;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        panic!("never pulled an RGBA sample");
     }
 }
