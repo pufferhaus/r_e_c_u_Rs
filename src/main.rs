@@ -154,6 +154,7 @@ fn main() -> anyhow::Result<()> {
         if let Some(frame) = rack.current.pull_latest_rgba() {
             render.draw_video_layer(frame.data(), frame.width, frame.height, 1.0);
         }
+        render.draw_text_grid(&grid);
         render.end_frame();
 
         // 5. Pace the loop

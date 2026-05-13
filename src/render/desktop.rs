@@ -20,6 +20,7 @@ use winit::window::Window;
 
 use super::shader;
 use super::shader::QUAD;
+use super::text::TextOverlay;
 
 pub struct WinitGlTarget {
     gl: glow::Context,
@@ -43,6 +44,9 @@ pub struct WinitGlTarget {
     // Cached vertex attribute locations (set once at program compile time)
     pos_loc: u32,
     uv_loc: u32,
+
+    // Text overlay (menus rendered on top of the video layer)
+    text: TextOverlay,
 }
 
 impl WinitGlTarget {
@@ -170,6 +174,9 @@ impl WinitGlTarget {
             gl.get_attrib_location(program, "a_uv").expect("a_uv not found in shader") as u32
         };
 
+        // Build text overlay (atlas texture + dynamic VBO + shader)
+        let text = unsafe { TextOverlay::new(&gl)? };
+
         Ok(Self {
             gl,
             surface,
@@ -186,6 +193,7 @@ impl WinitGlTarget {
             last_tex_h: height,
             pos_loc,
             uv_loc,
+            text,
         })
     }
 
@@ -306,6 +314,15 @@ impl WinitGlTarget {
             // Disable attrib arrays to leave clean GL state
             gl.disable_vertex_attrib_array(self.pos_loc);
             gl.disable_vertex_attrib_array(self.uv_loc);
+        }
+    }
+
+    /// Draw the menu/status text grid as a full-window overlay on top of the
+    /// video layer. The grid's background is rendered semi-transparent so the
+    /// video bleeds through; glyph pixels themselves are fully opaque.
+    pub fn draw_text_grid(&mut self, grid: &crate::status::grid::TextGrid) {
+        unsafe {
+            self.text.draw(&self.gl, grid, 0.55);
         }
     }
 

@@ -23,6 +23,7 @@ use glow::HasContext;
 
 use crate::error::{Error, Result};
 use super::shader;
+use super::text::TextOverlay;
 
 // ── DRM card wrapper ──────────────────────────────────────────────────────────
 
@@ -284,6 +285,9 @@ pub struct PiTarget {
     scanning: Option<(framebuffer::Handle, gbm::BufferObject<()>)>,
 
     should_exit: bool,
+
+    // Text overlay
+    text: TextOverlay,
 }
 
 impl PiTarget {
@@ -330,6 +334,8 @@ impl PiTarget {
             ctx.gl.get_attrib_location(program, "a_uv").expect("a_uv not found in shader") as u32
         };
 
+        let text = unsafe { TextOverlay::new(&ctx.gl)? };
+
         Ok(Self {
             ctx,
             program,
@@ -343,6 +349,7 @@ impl PiTarget {
             uv_loc,
             scanning: None,
             should_exit: false,
+            text,
         })
     }
 
@@ -409,6 +416,14 @@ impl PiTarget {
 
             gl.disable_vertex_attrib_array(self.pos_loc);
             gl.disable_vertex_attrib_array(self.uv_loc);
+        }
+    }
+
+    /// Draw the menu/status text grid as a full-screen overlay on top of the
+    /// video layer.
+    pub fn draw_text_grid(&mut self, grid: &crate::status::grid::TextGrid) {
+        unsafe {
+            self.text.draw(&self.ctx.gl, grid, 0.55);
         }
     }
 
