@@ -1,6 +1,13 @@
-*.pyc
-*.log
-.vscode
-json_objects/display_data.json
-json_objects/shader_bank_data.json
-json_objects/settings.json
+# Original Python fork preserved on disk, not tracked.
+.old/
+
+# Rust
+/target/
+**/*.rs.bk
+Cargo.lock.bak
+
+# Editor / OS
+.DS_Store
+*.swp
+.idea/
+.vscode/
