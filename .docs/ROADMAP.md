@@ -6,11 +6,12 @@ The original Python source is preserved at `.old/` (gitignored).
 
 ## Bugs / Blockers
 
-_(none yet — project not started)_
+- **Render stub**: `src/render/mod.rs` is a no-op stub from T11. No video frames reach the screen yet. Real GL backend (copy of mandleROT's `render/desktop.rs` + `render/pi.rs`) is the next focused task. The status grid is also output-less for the same reason — only the in-memory `TextGrid` is computed.
+- **Pi cross-build unverified**: `cargo build --features pi` has not been run. The pi feature flag is declared in Cargo.toml but no source paths gate on it yet — verification deferred until the Render backend lands.
 
 ## Recently Shipped
 
-_(none yet)_
+- **Phase 1 — r_e_c_u_r-core** (2026-05-12): file playback, sample bank, loop points, sampler modes, Browser/Sampler/Settings menus, desktop keyboard control. 80+ unit tests; headless smoke runs `--smoke-frames N`. GL render backend + Pi cross-build deferred to a follow-up; ScreenStack + apply pipeline + GStreamer player rack all in place.
 
 ## Design Notes
 
@@ -27,7 +28,7 @@ Each phase = its own design spec + implementation plan + ship cycle.
 
 | ID | Phase | Status | Key files / dirs |
 |---|---|---|---|
-| 1 | **r_e_c_u_r-core** — file playback, sample bank, loop points, sampler modes, Browser/Sampler/Settings menus, desktop keyboard control | ☐ | `src/video/`, `src/sample/`, `src/menu/`, `src/input/winit_src.rs` |
+| 1 | **r_e_c_u_r-core** — file playback, sample bank, loop points, sampler modes, Browser/Sampler/Settings menus, desktop keyboard control | ✅ | `src/video/`, `src/sample/`, `src/menu/`, `src/input/winit_src.rs` |
 | 2 | **conjur** — GLSL shader layer over video sources; scene system from mandleROT | ☐ | `src/shader/`, `shaders/`, `scenes/` |
 | 3 | **detour** — in-memory frame ring (~500 frames), scrubbing, speed/direction control | ☐ | `src/detour/` |
 | 4 | **captur** — USB v4l2 / CSI live-capture as a video source, slot-mapped | ☐ | `src/video/capture.rs` |
