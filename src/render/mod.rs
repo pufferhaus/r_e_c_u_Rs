@@ -1,15 +1,19 @@
-//! Video render — desktop backend gated by `desktop` feature.
+//! Video render — desktop backend gated by `desktop` feature, pi by `pi`.
 
 #[cfg(feature = "desktop")]
 mod desktop;
+#[cfg(feature = "pi")]
+mod pi;
 mod shader;
 
 #[cfg(feature = "desktop")]
 pub use desktop::WinitGlTarget as Render;
+#[cfg(all(feature = "pi", not(feature = "desktop")))]
+pub use pi::PiTarget as Render;
 
-// Fallback stub for builds with neither `desktop` nor `pi`.
+// Headless / no-window fallback when neither feature is enabled.
 // Lets unit tests compile in headless CI without window-system deps.
-#[cfg(not(feature = "desktop"))]
+#[cfg(not(any(feature = "desktop", feature = "pi")))]
 mod stub {
     pub struct Render;
     impl Render {
@@ -27,5 +31,5 @@ mod stub {
         pub fn end_frame(&mut self) {}
     }
 }
-#[cfg(not(feature = "desktop"))]
+#[cfg(not(any(feature = "desktop", feature = "pi")))]
 pub use stub::Render;

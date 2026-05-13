@@ -6,11 +6,11 @@ The original Python source is preserved at `.old/` (gitignored).
 
 ## Bugs / Blockers
 
-- **Render stub**: `src/render/mod.rs` is a no-op stub from T11. No video frames reach the screen yet. Real GL backend (copy of mandleROT's `render/desktop.rs` + `render/pi.rs`) is the next focused task. The status grid is also output-less for the same reason — only the in-memory `TextGrid` is computed.
-- **Pi cross-build unverified**: `cargo build --features pi` has not been run. The pi feature flag is declared in Cargo.toml but no source paths gate on it yet — verification deferred until the Render backend lands.
+_(none)_
 
 ## Recently Shipped
 
+- **Render backend** (2026-05-12): real desktop GL render via winit + glutin + glow; video frames now display in a window. Pi cross-build via `cross build --no-default-features --features pi` verified compiling to `aarch64-unknown-linux-gnu` (real-Pi runtime testing pending hardware access).
 - **Phase 1 — r_e_c_u_r-core** (2026-05-12): file playback, sample bank, loop points, sampler modes, Browser/Sampler/Settings menus, desktop keyboard control. 80+ unit tests; headless smoke runs `--smoke-frames N`. GL render backend + Pi cross-build deferred to a follow-up; ScreenStack + apply pipeline + GStreamer player rack all in place.
 
 ## Design Notes
