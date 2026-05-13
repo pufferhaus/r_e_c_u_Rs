@@ -2,17 +2,27 @@
 
 use crate::action::{Action, SettingId};
 use crate::state::{
-    Bank, ControlMode, DisplayMode, LoadNext, LoopType, OnFinish, OnLoad, OnStart, PlayerMode,
-    SharedState, SLOTS_PER_BANK,
+    ControlMode, DisplayMode, LoadNext, LoopType, OnFinish, OnLoad, OnStart, PlayerMode,
+    SharedState, Slot, SLOTS_PER_BANK,
 };
 
 /// Side-effects the mutator needs to push at the player rack. Real
 /// implementation in `crate::video::rack`. Tests use a no-op or spy.
 pub trait RackHandle {
     fn reload_all(&mut self);
-    fn trigger_slot(&mut self, bank: u8, slot: u8);
-    fn set_loop_in_now(&mut self);
-    fn set_loop_out_now(&mut self);
+
+    /// Trigger playback of the given slot. Caller resolves slot data from
+    /// SharedState and passes explicit bank/slot indices so the rack can track
+    /// the binding without holding its own stale bank snapshot.
+    fn trigger_slot_with(&mut self, bank: u8, slot_idx: u8, slot: Slot);
+
+    /// Current player's playback position in seconds. `None` if nothing is loaded.
+    fn current_position(&self) -> Option<f64>;
+
+    /// Which (bank, slot_index) the current player is playing.
+    /// Used by SetLoopIn/Out/ClearLoop to know which state slot to mutate.
+    fn current_binding(&self) -> Option<(u8, u8)>;
+
     fn toggle_play_pause_now(&mut self);
     fn seek_relative_now(&mut self, seconds: f64);
     fn set_rate_now(&mut self, rate: f32);
@@ -50,9 +60,12 @@ pub fn apply<R: RackHandle>(action: Action, state: &mut SharedState, rack: &mut 
             // Plain   → trigger slot n.
             // Mapping path is implemented when BrowserBody lands (Task 12);
             // for now plain trigger is enough for apply unit-tests.
-            let n = n.min((SLOTS_PER_BANK - 1) as u8);
+            let n = n.min((SLOTS_PER_BANK - 1) as u8) as usize;
             if !state.function_on {
-                rack.trigger_slot(state.bank_number, n);
+                let bank = state.bank_number as usize;
+                if let Some(Some(slot)) = state.banks.get(bank).and_then(|b| b.slots.get(n)).cloned() {
+                    rack.trigger_slot_with(bank as u8, n as u8, slot);
+                }
             }
             state.function_on = false;
         }
@@ -62,18 +75,46 @@ pub fn apply<R: RackHandle>(action: Action, state: &mut SharedState, rack: &mut 
             }
         }
         Action::NextBank => {
+            use crate::state::Bank;
             if (state.bank_number as usize) + 1 >= state.banks.len() {
                 state.banks.push(Bank::empty());
             }
             state.bank_number += 1;
         }
-        Action::SetLoopIn => rack.set_loop_in_now(),
-        Action::SetLoopOut => rack.set_loop_out_now(),
+        Action::SetLoopIn => {
+            if let (Some(pos), Some((b, s))) = (rack.current_position(), rack.current_binding()) {
+                if let Some(Some(slot)) = state.banks.get_mut(b as usize)
+                    .and_then(|bank| bank.slots.get_mut(s as usize))
+                {
+                    // Only accept if pos is before the current end (or end is unset).
+                    if slot.end < 0.0 || pos < slot.end {
+                        slot.start = pos;
+                    }
+                }
+            }
+        }
+        Action::SetLoopOut => {
+            if let (Some(pos), Some((b, s))) = (rack.current_position(), rack.current_binding()) {
+                if let Some(Some(slot)) = state.banks.get_mut(b as usize)
+                    .and_then(|bank| bank.slots.get_mut(s as usize))
+                {
+                    // Only accept if pos is after the current start (or start is unset).
+                    if slot.start < 0.0 || pos > slot.start {
+                        slot.end = pos;
+                    }
+                }
+            }
+        }
         Action::ClearLoop => {
-            // ClearLoop applies to the slot the "now" player is bound to.
-            // The slot location is owned by SharedState; rack drives playback.
-            // We need both to be in sync: clear on state, then trigger reload.
-            // For Phase 1 the rack reloads its current slot on next tick.
+            if let Some((b, s)) = rack.current_binding() {
+                if let Some(slot) = state.banks.get_mut(b as usize)
+                    .and_then(|bank| bank.slots.get_mut(s as usize))
+                    .and_then(|opt| opt.as_mut())
+                {
+                    slot.start = -1.0;
+                    slot.end = -1.0;
+                }
+            }
             rack.reload_all();
         }
         Action::TogglePlayPause => rack.toggle_play_pause_now(),
@@ -136,34 +177,50 @@ fn cycle_setting(state: &mut SharedState, id: SettingId) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::state::Slot;
 
     #[derive(Default, Debug)]
     struct SpyRack {
         reload_count: u32,
-        trigger: Vec<(u8, u8)>,
-        loop_in: u32,
-        loop_out: u32,
+        /// (bank, slot_idx, slot_name) for each trigger_slot_with call.
+        trigger_calls: Vec<(u8, u8, String)>,
         toggle_pause: u32,
+        /// Reported by current_position().
+        position: Option<f64>,
+        /// Reported by current_binding().
+        binding: Option<(u8, u8)>,
     }
 
     impl RackHandle for SpyRack {
         fn reload_all(&mut self) {
             self.reload_count += 1;
         }
-        fn trigger_slot(&mut self, b: u8, s: u8) {
-            self.trigger.push((b, s));
+        fn trigger_slot_with(&mut self, bank: u8, slot_idx: u8, slot: Slot) {
+            self.trigger_calls.push((bank, slot_idx, slot.name.clone()));
+            self.binding = Some((bank, slot_idx));
         }
-        fn set_loop_in_now(&mut self) {
-            self.loop_in += 1;
+        fn current_position(&self) -> Option<f64> {
+            self.position
         }
-        fn set_loop_out_now(&mut self) {
-            self.loop_out += 1;
+        fn current_binding(&self) -> Option<(u8, u8)> {
+            self.binding
         }
         fn toggle_play_pause_now(&mut self) {
             self.toggle_pause += 1;
         }
         fn seek_relative_now(&mut self, _: f64) {}
         fn set_rate_now(&mut self, _: f32) {}
+    }
+
+    fn make_slot(name: &str) -> Slot {
+        Slot {
+            location: format!("/tmp/{}.mp4", name).into(),
+            name: name.into(),
+            start: -1.0,
+            end: -1.0,
+            length: 10.0,
+            rate: 1.0,
+        }
     }
 
     #[test]
@@ -181,9 +238,10 @@ mod tests {
     #[test]
     fn select_slot_triggers_when_function_off() {
         let mut s = SharedState::new();
+        s.banks[0].slots[3] = Some(make_slot("clip3"));
         let mut r = SpyRack::default();
         apply(Action::SelectSlot(3), &mut s, &mut r);
-        assert_eq!(r.trigger, vec![(0, 3)]);
+        assert_eq!(r.trigger_calls, vec![(0, 3, "clip3".to_string())]);
     }
 
     #[test]
@@ -192,8 +250,17 @@ mod tests {
         s.function_on = true;
         let mut r = SpyRack::default();
         apply(Action::SelectSlot(3), &mut s, &mut r);
-        assert!(r.trigger.is_empty());
+        assert!(r.trigger_calls.is_empty());
         assert!(!s.function_on, "function clears after slot key");
+    }
+
+    #[test]
+    fn select_slot_is_noop_when_slot_empty() {
+        // slot 5 is None — no trigger call expected.
+        let mut s = SharedState::new();
+        let mut r = SpyRack::default();
+        apply(Action::SelectSlot(5), &mut s, &mut r);
+        assert!(r.trigger_calls.is_empty());
     }
 
     #[test]
@@ -244,5 +311,62 @@ mod tests {
         assert_eq!(s.sampler.fixed_length_multiply, 4.0);
         apply(Action::CycleSetting(m), &mut s, &mut r);
         assert_eq!(s.sampler.fixed_length_multiply, 0.5);
+    }
+
+    #[test]
+    fn set_loop_in_writes_to_state_slot() {
+        let mut s = SharedState::new();
+        s.banks[0].slots[2] = Some(Slot {
+            location: "/tmp/x.mp4".into(),
+            name: "x".into(),
+            start: -1.0,
+            end: 5.0,
+            length: 10.0,
+            rate: 1.0,
+        });
+        let mut r = SpyRack::default();
+        r.position = Some(1.5);
+        r.binding = Some((0, 2));
+        apply(Action::SetLoopIn, &mut s, &mut r);
+        assert_eq!(s.banks[0].slots[2].as_ref().unwrap().start, 1.5);
+    }
+
+    #[test]
+    fn set_loop_in_rejects_when_pos_past_end() {
+        let mut s = SharedState::new();
+        s.banks[0].slots[2] = Some(Slot {
+            location: "/tmp/x.mp4".into(),
+            name: "x".into(),
+            start: 0.0,
+            end: 3.0,
+            length: 10.0,
+            rate: 1.0,
+        });
+        let mut r = SpyRack::default();
+        r.position = Some(5.0);
+        r.binding = Some((0, 2));
+        apply(Action::SetLoopIn, &mut s, &mut r);
+        // pos 5.0 > end 3.0 — rejected; start stays at 0.0.
+        assert_eq!(s.banks[0].slots[2].as_ref().unwrap().start, 0.0);
+    }
+
+    #[test]
+    fn clear_loop_resets_both_endpoints() {
+        let mut s = SharedState::new();
+        s.banks[0].slots[2] = Some(Slot {
+            location: "/tmp/x.mp4".into(),
+            name: "x".into(),
+            start: 1.0,
+            end: 4.0,
+            length: 10.0,
+            rate: 1.0,
+        });
+        let mut r = SpyRack::default();
+        r.binding = Some((0, 2));
+        apply(Action::ClearLoop, &mut s, &mut r);
+        let slot = s.banks[0].slots[2].as_ref().unwrap();
+        assert_eq!(slot.start, -1.0);
+        assert_eq!(slot.end, -1.0);
+        assert_eq!(r.reload_count, 1);
     }
 }

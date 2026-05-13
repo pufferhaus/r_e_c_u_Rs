@@ -61,9 +61,8 @@ fn main() -> anyhow::Result<()> {
     state.sampler = settings;
     state.paths_to_browser = paths;
 
-    let bank0 = state.banks[0].clone();
     let sampler_settings = state.sampler.clone();
-    let mut rack = PlayerRack::new(bank0, sampler_settings);
+    let mut rack = PlayerRack::new(sampler_settings);
     let mut grid = TextGrid::new(48, 17);
     let mut stack = ScreenStack::new();
     stack.push(Box::new(RootScreen::new()));
@@ -89,17 +88,18 @@ fn main() -> anyhow::Result<()> {
         if std::env::var("RECUR_SMOKE_AUTO_LOAD").is_ok() {
             let p = std::env::current_dir()?.join("assets/test_smpte.mp4");
             if p.exists() {
-                state.banks[0].slots[0] = Some(recur::state::Slot {
+                let slot = recur::state::Slot {
                     location: p,
                     name: "test_smpte.mp4".into(),
                     start: -1.0,
                     end: -1.0,
                     length: 0.0,
                     rate: 1.0,
-                });
+                };
+                state.banks[0].slots[0] = Some(slot.clone());
                 // Trigger play immediately so the smoke run shows video.
                 use recur::apply::RackHandle;
-                rack.trigger_slot(0, 0);
+                rack.trigger_slot_with(0, 0, slot);
             }
         }
     }

@@ -6,32 +6,33 @@ use tracing::warn;
 
 use crate::apply::RackHandle;
 use crate::error::Result;
-use crate::state::{Bank, LoopType, OnFinish, SamplerSettings, Slot};
+use crate::state::{LoopType, OnFinish, SamplerSettings, Slot};
 use crate::video::player::{Player, PlayerStatus};
 
 pub struct PlayerRack {
     pub last: Player,
     pub current: Player,
     pub next: Player,
-    pub bank: Bank,
-    pub bank_number: u8,
     pub settings: SamplerSettings,
     pub rng: ChaCha8Rng,
     /// Monotonically decreasing layer counter. Wraps at 0 → 254.
     pub next_layer: u32,
+    /// Which (bank, slot_index) the current player was explicitly triggered on.
+    /// Cleared on swap so loop-point edits only apply to the actively triggered player.
+    /// Future work: track next_binding separately and promote on swap.
+    pub current_binding: Option<(u8, u8)>,
 }
 
 impl PlayerRack {
-    pub fn new(bank: Bank, settings: SamplerSettings) -> Self {
+    pub fn new(settings: SamplerSettings) -> Self {
         Self {
             last: Player::empty(254),
             current: Player::empty(253),
             next: Player::empty(252),
-            bank,
-            bank_number: 0,
             settings,
             rng: ChaCha8Rng::seed_from_u64(0xC0FFEE),
             next_layer: 251,
+            current_binding: None,
         }
     }
 
@@ -110,6 +111,10 @@ impl PlayerRack {
         std::mem::swap(&mut self.last, &mut self.current);
         std::mem::swap(&mut self.current, &mut self.next);
         self.last.unload();
+        // Phase-1 simplification: clear binding on swap so loop-point edits
+        // only affect a player that was explicitly triggered, not auto-advanced.
+        // Future: track next_binding and promote it here.
+        self.current_binding = None;
     }
 
     pub fn now_mut(&mut self) -> &mut Player {
@@ -123,24 +128,21 @@ impl RackHandle for PlayerRack {
         self.current.unload();
         self.next.unload();
     }
-    fn trigger_slot(&mut self, _bank: u8, slot_idx: u8) {
-        if let Some(Some(s)) = self.bank.slots.get(slot_idx as usize).cloned() {
-            if let Err(e) = self.jump_to(s) {
-                warn!("trigger_slot {slot_idx} failed: {e}");
-            }
+    fn trigger_slot_with(&mut self, bank: u8, slot_idx: u8, slot: Slot) {
+        self.current_binding = Some((bank, slot_idx));
+        if let Err(e) = self.jump_to(slot) {
+            warn!("trigger_slot_with {bank}-{slot_idx} failed: {e}");
         }
     }
-    fn set_loop_in_now(&mut self) {
-        let pos = self.current.last_position;
-        if let Some(slot) = &mut self.current.slot {
-            slot.start = pos;
+    fn current_position(&self) -> Option<f64> {
+        if self.current.slot.is_some() {
+            Some(self.current.last_position)
+        } else {
+            None
         }
     }
-    fn set_loop_out_now(&mut self) {
-        let pos = self.current.last_position;
-        if let Some(slot) = &mut self.current.slot {
-            slot.end = pos;
-        }
+    fn current_binding(&self) -> Option<(u8, u8)> {
+        self.current_binding
     }
     fn toggle_play_pause_now(&mut self) {
         match self.current.status {
@@ -164,7 +166,7 @@ mod tests {
 
     #[test]
     fn alloc_layer_wraps_at_zero() {
-        let mut r = PlayerRack::new(Bank::empty(), SamplerSettings::default());
+        let mut r = PlayerRack::new(SamplerSettings::default());
         r.next_layer = 0;
         assert_eq!(r.alloc_layer(), 0);
         assert_eq!(r.next_layer, 254);
@@ -172,7 +174,7 @@ mod tests {
 
     #[test]
     fn reload_all_clears_all_three() {
-        let mut r = PlayerRack::new(Bank::empty(), SamplerSettings::default());
+        let mut r = PlayerRack::new(SamplerSettings::default());
         r.last.status = PlayerStatus::Loaded;
         r.current.status = PlayerStatus::Playing;
         r.next.status = PlayerStatus::Loaded;
@@ -180,28 +182,5 @@ mod tests {
         assert_eq!(r.last.status, PlayerStatus::Empty);
         assert_eq!(r.current.status, PlayerStatus::Empty);
         assert_eq!(r.next.status, PlayerStatus::Empty);
-    }
-
-    #[test]
-    fn set_loop_in_writes_current_position_to_slot() {
-        let mut r = PlayerRack::new(Bank::empty(), SamplerSettings::default());
-        r.current.slot = Some(Slot {
-            location: "/tmp/x.mp4".into(),
-            name: "x".into(),
-            start: -1.0,
-            end: -1.0,
-            length: 10.0,
-            rate: 1.0,
-        });
-        r.current.last_position = 2.5;
-        r.set_loop_in_now();
-        assert_eq!(r.current.slot.as_ref().unwrap().start, 2.5);
-    }
-
-    #[test]
-    fn trigger_slot_with_empty_bank_is_noop() {
-        let mut r = PlayerRack::new(Bank::empty(), SamplerSettings::default());
-        r.trigger_slot(0, 5); // no panic
-        assert_eq!(r.current.status, PlayerStatus::Empty);
     }
 }
