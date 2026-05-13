@@ -1,0 +1,208 @@
+//! Keymap: loads `keymap.toml` and maps key-code strings → `Action`.
+//!
+//! The TOML format is a `[bindings]` table where each key is a physical-key
+//! name string and each value is an action string:
+//!
+//! ```toml
+//! [bindings]
+//! "Space" = "TogglePlayPause"
+//! "Digit1" = "SelectSlot(1)"
+//! "KeyB"   = "EnterMode(Browser)"
+//! ```
+//!
+//! Action strings are parsed by `parse_action`. Unrecognised strings return
+//! `Error::Keymap`.
+
+use std::collections::HashMap;
+use std::path::Path;
+
+use serde::Deserialize;
+
+use crate::action::{Action, SettingId};
+use crate::error::{Error, Result};
+use crate::state::DisplayMode;
+
+#[derive(Debug, Deserialize)]
+struct KeymapFile {
+    bindings: HashMap<String, String>,
+}
+
+/// A loaded keymap: maps raw key-code strings to `Action` values.
+#[derive(Debug, Default)]
+pub struct Keymap {
+    map: HashMap<String, Action>,
+}
+
+impl Keymap {
+    /// Load and parse `keymap.toml` at `path`.
+    pub fn load(path: &Path) -> Result<Self> {
+        let s = std::fs::read_to_string(path)?;
+        Self::parse(&s)
+    }
+
+    /// Parse from a TOML string (useful for tests).
+    pub fn parse(s: &str) -> Result<Self> {
+        let file: KeymapFile = toml::from_str(s).map_err(|e| Error::TomlParse {
+            file: "keymap.toml".into(),
+            source: e,
+        })?;
+        let mut map = HashMap::new();
+        for (key, action_str) in file.bindings {
+            let action = parse_action(&action_str)
+                .map_err(|_| Error::Keymap(format!("{key} = {action_str:?}")))?;
+            map.insert(key, action);
+        }
+        Ok(Self { map })
+    }
+
+    /// Look up the `Action` for a raw key-code string, e.g. `"Space"`.
+    pub fn lookup(&self, key: &str) -> Option<Action> {
+        self.map.get(key).cloned()
+    }
+
+    /// Iterate all (key_code, action) pairs (useful for diagnostics).
+    pub fn entries(&self) -> impl Iterator<Item = (&str, &Action)> {
+        self.map.iter().map(|(k, v)| (k.as_str(), v))
+    }
+}
+
+/// Parse an action label string like `"TogglePlayPause"`, `"SelectSlot(3)"`,
+/// `"EnterMode(Browser)"`.
+fn parse_action(s: &str) -> std::result::Result<Action, ()> {
+    // Parenthesized variants.
+    if let Some(rest) = s.strip_prefix("SelectSlot(").and_then(|r| r.strip_suffix(')')) {
+        let n: u8 = rest.parse().map_err(|_| ())?;
+        return Ok(Action::SelectSlot(n));
+    }
+    if let Some(rest) = s.strip_prefix("EnterMode(").and_then(|r| r.strip_suffix(')')) {
+        let mode = match rest {
+            "Browser" => DisplayMode::Browser,
+            "Sampler" => DisplayMode::Sampler,
+            "Settings" => DisplayMode::Settings,
+            "Shaders" => DisplayMode::Shaders,
+            _ => return Err(()),
+        };
+        return Ok(Action::EnterMode(mode));
+    }
+    if let Some(rest) = s.strip_prefix("SeekRelative(").and_then(|r| r.strip_suffix(')')) {
+        let v: f64 = rest.parse().map_err(|_| ())?;
+        return Ok(Action::SeekRelative(v));
+    }
+    if let Some(rest) = s.strip_prefix("SetRate(").and_then(|r| r.strip_suffix(')')) {
+        let v: f32 = rest.parse().map_err(|_| ())?;
+        return Ok(Action::SetRate(v));
+    }
+    if let Some(rest) = s.strip_prefix("CycleSetting(").and_then(|r| r.strip_suffix(')')) {
+        let id = match rest {
+            "LoopType" => SettingId::LoopType,
+            "OnFinish" => SettingId::OnFinish,
+            "OnStart" => SettingId::OnStart,
+            "OnLoad" => SettingId::OnLoad,
+            "LoadNext" => SettingId::LoadNext,
+            "RandStartMode" => SettingId::RandStartMode,
+            "FixedLengthMode" => SettingId::FixedLengthMode,
+            "FixedLengthMultiply" => SettingId::FixedLengthMultiply,
+            "ResetPlayers" => SettingId::ResetPlayers,
+            _ => return Err(()),
+        };
+        return Ok(Action::CycleSetting(id));
+    }
+
+    // Simple variants.
+    let action = match s {
+        "NavUp" => Action::NavUp,
+        "NavDown" => Action::NavDown,
+        "NavLeft" => Action::NavLeft,
+        "NavRight" => Action::NavRight,
+        "Enter" => Action::Enter,
+        "Back" => Action::Back,
+        "Panic" => Action::Panic,
+        "ToggleNowNext" => Action::ToggleNowNext,
+        "ToggleFunction" => Action::ToggleFunction,
+        "PrevBank" => Action::PrevBank,
+        "NextBank" => Action::NextBank,
+        "SetLoopIn" => Action::SetLoopIn,
+        "SetLoopOut" => Action::SetLoopOut,
+        "ClearLoop" => Action::ClearLoop,
+        "TogglePlayPause" => Action::TogglePlayPause,
+        "Reload" => Action::Reload,
+        _ => return Err(()),
+    };
+    Ok(action)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const SAMPLE: &str = r#"
+[bindings]
+"Space" = "TogglePlayPause"
+"Digit1" = "SelectSlot(1)"
+"Digit0" = "SelectSlot(0)"
+"KeyB"   = "EnterMode(Browser)"
+"Enter"  = "Enter"
+"Escape" = "Back"
+"ArrowUp" = "NavUp"
+"ShiftLeft" = "ToggleFunction"
+"#;
+
+    #[test]
+    fn load_toggle_play_pause() {
+        let km = Keymap::parse(SAMPLE).unwrap();
+        assert_eq!(km.lookup("Space"), Some(Action::TogglePlayPause));
+    }
+
+    #[test]
+    fn select_slot_zero() {
+        let km = Keymap::parse(SAMPLE).unwrap();
+        assert_eq!(km.lookup("Digit0"), Some(Action::SelectSlot(0)));
+    }
+
+    #[test]
+    fn select_slot_one() {
+        let km = Keymap::parse(SAMPLE).unwrap();
+        assert_eq!(km.lookup("Digit1"), Some(Action::SelectSlot(1)));
+    }
+
+    #[test]
+    fn enter_mode_browser() {
+        let km = Keymap::parse(SAMPLE).unwrap();
+        assert_eq!(km.lookup("KeyB"), Some(Action::EnterMode(DisplayMode::Browser)));
+    }
+
+    #[test]
+    fn unknown_key_returns_none() {
+        let km = Keymap::parse(SAMPLE).unwrap();
+        assert_eq!(km.lookup("Quux"), None);
+    }
+
+    #[test]
+    fn bad_action_string_returns_err() {
+        let bad = "[bindings]\n\"Space\" = \"WarpDrive\"\n";
+        assert!(Keymap::parse(bad).is_err());
+    }
+
+    #[test]
+    fn toggle_function_action() {
+        let km = Keymap::parse(SAMPLE).unwrap();
+        assert_eq!(km.lookup("ShiftLeft"), Some(Action::ToggleFunction));
+    }
+
+    #[test]
+    fn default_keymap_toml_parses_fully() {
+        // Verify that every entry in the shipped keymap.toml is valid.
+        let km = Keymap::parse(include_str!("../../keymap.toml")).unwrap();
+        // Spot-check a few representative bindings.
+        assert_eq!(km.lookup("Space"), Some(Action::TogglePlayPause));
+        assert_eq!(km.lookup("Digit0"), Some(Action::SelectSlot(0)));
+        assert_eq!(km.lookup("Digit9"), Some(Action::SelectSlot(9)));
+        assert_eq!(km.lookup("BracketLeft"), Some(Action::SetLoopIn));
+        assert_eq!(km.lookup("BracketRight"), Some(Action::SetLoopOut));
+        assert_eq!(km.lookup("Backslash"), Some(Action::ClearLoop));
+        assert_eq!(km.lookup("ArrowUp"), Some(Action::NavUp));
+        assert_eq!(km.lookup("KeyB"), Some(Action::EnterMode(DisplayMode::Browser)));
+        assert_eq!(km.lookup("Escape"), Some(Action::Back));
+        assert_eq!(km.lookup("ShiftLeft"), Some(Action::ToggleFunction));
+    }
+}
