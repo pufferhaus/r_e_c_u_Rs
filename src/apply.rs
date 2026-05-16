@@ -129,6 +129,11 @@ pub fn apply<R: RackHandle>(action: Action, state: &mut SharedState, rack: &mut 
         Action::SetRate(r) => rack.set_rate_now(r),
         Action::Reload => rack.reload_all(),
         Action::CycleSetting(id) => cycle_setting(state, id),
+        // Phase 2 shader actions — handled in Task 6.
+        Action::SelectShaderSlot(_)
+        | Action::TriggerShaderSlot(_)
+        | Action::ShaderParamAdjust(_)
+        | Action::ShaderParamSelect(_) => {}
     }
 }
 

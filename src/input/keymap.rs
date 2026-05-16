@@ -80,6 +80,8 @@ fn parse_action(s: &str) -> std::result::Result<Action, ()> {
             "Sampler" => DisplayMode::Sampler,
             "Settings" => DisplayMode::Settings,
             "Shaders" => DisplayMode::Shaders,
+            "ShdrBnk" => DisplayMode::ShdrBnk,
+            "Frames" => DisplayMode::Frames,
             _ => return Err(()),
         };
         return Ok(Action::EnterMode(mode));
@@ -91,6 +93,22 @@ fn parse_action(s: &str) -> std::result::Result<Action, ()> {
     if let Some(rest) = s.strip_prefix("SetRate(").and_then(|r| r.strip_suffix(')')) {
         let v: f32 = rest.parse().map_err(|_| ())?;
         return Ok(Action::SetRate(v));
+    }
+    if let Some(rest) = s.strip_prefix("SelectShaderSlot(").and_then(|r| r.strip_suffix(')')) {
+        let n: u8 = rest.parse().map_err(|_| ())?;
+        return Ok(Action::SelectShaderSlot(n));
+    }
+    if let Some(rest) = s.strip_prefix("TriggerShaderSlot(").and_then(|r| r.strip_suffix(')')) {
+        let n: u8 = rest.parse().map_err(|_| ())?;
+        return Ok(Action::TriggerShaderSlot(n));
+    }
+    if let Some(rest) = s.strip_prefix("ShaderParamAdjust(").and_then(|r| r.strip_suffix(')')) {
+        let n: i8 = rest.parse().map_err(|_| ())?;
+        return Ok(Action::ShaderParamAdjust(n));
+    }
+    if let Some(rest) = s.strip_prefix("ShaderParamSelect(").and_then(|r| r.strip_suffix(')')) {
+        let n: u8 = rest.parse().map_err(|_| ())?;
+        return Ok(Action::ShaderParamSelect(n));
     }
     if let Some(rest) = s.strip_prefix("CycleSetting(").and_then(|r| r.strip_suffix(')')) {
         let id = match rest {
@@ -187,6 +205,34 @@ mod tests {
     fn toggle_function_action() {
         let km = Keymap::parse(SAMPLE).unwrap();
         assert_eq!(km.lookup("ShiftLeft"), Some(Action::ToggleFunction));
+    }
+
+    #[test]
+    fn parses_select_shader_slot() {
+        let s = "[bindings]\n\"F1\" = \"SelectShaderSlot(3)\"\n";
+        let km = Keymap::parse(s).unwrap();
+        assert_eq!(km.lookup("F1"), Some(Action::SelectShaderSlot(3)));
+    }
+
+    #[test]
+    fn parses_trigger_shader_slot() {
+        let s = "[bindings]\n\"F2\" = \"TriggerShaderSlot(7)\"\n";
+        let km = Keymap::parse(s).unwrap();
+        assert_eq!(km.lookup("F2"), Some(Action::TriggerShaderSlot(7)));
+    }
+
+    #[test]
+    fn parses_shader_param_adjust() {
+        let s = "[bindings]\n\"KeyP\" = \"ShaderParamAdjust(1)\"\n";
+        let km = Keymap::parse(s).unwrap();
+        assert_eq!(km.lookup("KeyP"), Some(Action::ShaderParamAdjust(1)));
+    }
+
+    #[test]
+    fn parses_enter_mode_shdr_bnk() {
+        let s = "[bindings]\n\"KeyK\" = \"EnterMode(ShdrBnk)\"\n";
+        let km = Keymap::parse(s).unwrap();
+        assert_eq!(km.lookup("KeyK"), Some(Action::EnterMode(DisplayMode::ShdrBnk)));
     }
 
     #[test]

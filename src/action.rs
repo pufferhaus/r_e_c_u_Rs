@@ -37,6 +37,19 @@ pub enum Action {
 
     // Settings
     CycleSetting(SettingId),
+
+    // Shader bank (Phase 2 — conjur)
+    /// Map the currently highlighted SHADERS browser entry into the focused
+    /// shader-bank slot. Function-key gated like SelectSlot.
+    SelectShaderSlot(u8),
+    /// Activate shader slot `n` of the current shader bank. Empty slot →
+    /// bypass; missing/uncompilable shader → fall back to baked __safe__.
+    TriggerShaderSlot(u8),
+    /// In ControlMode::ShaderParam, nudge the focused param up (+1) or down (-1)
+    /// by a meta-defined step (default 1% of [min..max] range).
+    ShaderParamAdjust(i8),
+    /// Move the param-edit focus to slot 0..=7.
+    ShaderParamSelect(u8),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
