@@ -126,6 +126,8 @@ fn main() -> anyhow::Result<()> {
 
     let sampler_settings = state.sampler.clone();
     let mut rack = PlayerRack::new(sampler_settings);
+    let (shader_tx, shader_rx) = crossbeam_channel::unbounded::<recur::video::rack::ShaderCommand>();
+    rack.set_shader_channel(shader_tx);
     let mut grid = TextGrid::new(48, 17);
     let mut stack = ScreenStack::new();
     stack.push(Box::new(RootScreen::new()));
@@ -207,6 +209,25 @@ fn main() -> anyhow::Result<()> {
         // Drain any gst error into shared state for the UI to display.
         if let Some(err) = rack.drain_last_error() {
             state.last_error = Some(err);
+        }
+
+        // Drain shader commands from the rack channel.
+        for cmd in shader_rx.try_iter() {
+            use recur::video::rack::ShaderCommand;
+            match cmd {
+                ShaderCommand::Trigger(name, params) => {
+                    match render.select_shader(&name, params) {
+                        Ok(()) => render.pulse_shader_trigger(),
+                        Err(e) => {
+                            let msg = format!("shader {name}: {e}");
+                            tracing::warn!("{msg}");
+                            state.last_error = Some(msg);
+                            render.clear_shader();
+                        }
+                    }
+                }
+                ShaderCommand::Clear => render.clear_shader(),
+            }
         }
 
         // 3. Re-render text grid

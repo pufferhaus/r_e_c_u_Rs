@@ -1,8 +1,15 @@
 //! Three-pipeline rotation: `last / current / next`. Hides decode latency.
 
+use crossbeam_channel::Sender;
 use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
 use tracing::warn;
+
+#[derive(Debug, Clone)]
+pub enum ShaderCommand {
+    Trigger(String, [f32; 8]),
+    Clear,
+}
 
 use crate::apply::RackHandle;
 use crate::error::Result;
@@ -25,6 +32,9 @@ pub struct PlayerRack {
     /// Used by `tick_sequential` to pre-queue the successor slot so that
     /// `OnFinish::Switch` can fire a decode-free swap.
     pub last_bank: Bank,
+    /// Channel to the render thread for shader commands. Set by main.rs after
+    /// the channel pair is created. None until wired up.
+    shader_tx: Option<Sender<ShaderCommand>>,
 }
 
 impl PlayerRack {
@@ -38,7 +48,12 @@ impl PlayerRack {
             next_layer: 251,
             current_binding: None,
             last_bank: Bank::empty(),
+            shader_tx: None,
         }
+    }
+
+    pub fn set_shader_channel(&mut self, tx: Sender<ShaderCommand>) {
+        self.shader_tx = Some(tx);
     }
 
     fn alloc_layer(&mut self) -> u32 {
@@ -190,11 +205,15 @@ impl RackHandle for PlayerRack {
     fn set_rate_now(&mut self, _rate: f32) {
         // ditto: deferred.
     }
-    fn trigger_shader(&mut self, _name: &str, _params: [f32; 8]) {
-        // Wired in Task 12.
+    fn trigger_shader(&mut self, name: &str, params: [f32; 8]) {
+        if let Some(tx) = &self.shader_tx {
+            let _ = tx.send(ShaderCommand::Trigger(name.to_string(), params));
+        }
     }
     fn clear_shader(&mut self) {
-        // Wired in Task 12.
+        if let Some(tx) = &self.shader_tx {
+            let _ = tx.send(ShaderCommand::Clear);
+        }
     }
 }
 
@@ -202,6 +221,27 @@ impl RackHandle for PlayerRack {
 mod tests {
     use super::*;
     use crate::state::Slot;
+
+    #[test]
+    fn trigger_shader_sends_command_when_channel_set() {
+        let mut r = PlayerRack::new(SamplerSettings::default());
+        let (tx, rx) = crossbeam_channel::unbounded();
+        r.set_shader_channel(tx);
+        use crate::apply::RackHandle;
+        r.trigger_shader("color_shift", [0.5; 8]);
+        r.clear_shader();
+        assert!(matches!(rx.try_recv(), Ok(ShaderCommand::Trigger(name, _)) if name == "color_shift"));
+        assert!(matches!(rx.try_recv(), Ok(ShaderCommand::Clear)));
+    }
+
+    #[test]
+    fn trigger_shader_without_channel_is_silent_noop() {
+        let mut r = PlayerRack::new(SamplerSettings::default());
+        use crate::apply::RackHandle;
+        r.trigger_shader("color_shift", [0.0; 8]);
+        r.clear_shader();
+        // No panic = pass.
+    }
 
     #[test]
     fn alloc_layer_wraps_at_zero() {

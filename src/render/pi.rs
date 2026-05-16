@@ -511,6 +511,27 @@ impl PiTarget {
             let _ = self.ctx.card.destroy_framebuffer(old_fb);
         }
     }
+
+    pub fn select_shader(&mut self, name: &str, params: [f32; 8]) -> anyhow::Result<()> {
+        self.pipeline.set_params(params);
+        unsafe { self.pipeline.select(&self.ctx.gl, name).map_err(|e| anyhow::anyhow!("select_shader {name}: {e}")) }
+    }
+
+    pub fn clear_shader(&mut self) {
+        self.pipeline.clear_active();
+    }
+
+    pub fn pulse_shader_trigger(&mut self) {
+        self.pipeline.pulse_trigger();
+    }
+
+    pub fn invalidate_shader(&mut self, name: &str) {
+        self.pipeline.invalidate(name);
+    }
+
+    pub fn upsert_shader(&mut self, name: &str, shader: crate::shader::LoadedShader) {
+        self.pipeline.library_mut().upsert(name, shader);
+    }
 }
 
 impl Drop for PiTarget {

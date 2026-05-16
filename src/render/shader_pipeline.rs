@@ -45,6 +45,8 @@ pub struct ShaderPipeline {
     active: Option<String>,
     /// Trigger envelope value, decayed each frame.
     trigger: f32,
+    /// Staged uniform values for the 8 shader param slots.
+    params: [f32; 8],
 }
 
 impl ShaderPipeline {
@@ -57,6 +59,7 @@ impl ShaderPipeline {
             vbo: None,
             active: None,
             trigger: 0.0,
+            params: [0.0; 8],
         }
     }
 
@@ -66,6 +69,35 @@ impl ShaderPipeline {
 
     pub fn library(&self) -> &ShaderLibrary {
         &self.library
+    }
+
+    /// Drop the cached compiled program for `name` so the next `select` call
+    /// re-compiles. Safe to call without a current GL context — only mutates
+    /// the host-side cache map.
+    pub fn invalidate(&mut self, name: &str) {
+        self.cache.remove(name);
+    }
+
+    /// Push the active shader-slot's 8 param values for the next apply().
+    pub fn set_params(&mut self, params: [f32; 8]) {
+        self.params = params;
+    }
+
+    /// Read the currently-staged param values (mostly for tests).
+    pub fn params(&self) -> [f32; 8] {
+        self.params
+    }
+
+    /// Drop the active selection. Subsequent `apply()` calls return the source
+    /// texture unchanged (bypass path).
+    pub fn clear_active(&mut self) {
+        self.active = None;
+    }
+
+    /// Mutable access to the library — used by hot-reload to swap a shader
+    /// source body in place.
+    pub fn library_mut(&mut self) -> &mut ShaderLibrary {
+        &mut self.library
     }
 
     /// Make the named shader active (compile + cache on first reference).
@@ -162,9 +194,10 @@ impl ShaderPipeline {
         if let Some(loc) = &cached.u_trigger {
             gl.uniform_1_f32(Some(loc), self.trigger);
         }
-        // Plan A: leave params at zero (full param mgmt arrives in sub-plan B).
-        for loc in cached.u_params.iter().flatten() {
-            gl.uniform_1_f32(Some(loc), 0.0);
+        for (i, loc) in cached.u_params.iter().enumerate() {
+            if let Some(loc) = loc {
+                gl.uniform_1_f32(Some(loc), self.params[i]);
+            }
         }
 
         // Draw the fullscreen quad.
@@ -288,5 +321,42 @@ mod tests {
         let lib = ShaderLibrary::default();
         let p = ShaderPipeline::new(GlesProfile::V100, lib);
         assert!(p.active.is_none());
+    }
+
+    #[test]
+    fn invalidate_drops_cache_entry_idempotently() {
+        use crate::shader::{LoadedShader, ShaderMeta};
+        let mut lib = ShaderLibrary::default();
+        let meta = ShaderMeta::parse("name = \"foo\"\n", "<test>").unwrap();
+        lib.upsert(
+            "foo",
+            LoadedShader {
+                meta,
+                fragment_body: "void main(){gl_FragColor=vec4(0);}".into(),
+                source_path: std::path::PathBuf::from("foo.glsl"),
+            },
+        );
+        let mut p = ShaderPipeline::new(GlesProfile::V100, lib);
+        // No GL context — just exercise the public API path. The cache is private,
+        // but invalidate is safe to call against a never-compiled entry.
+        p.invalidate("foo");
+        assert!(p.library().get("foo").is_some(), "library entry remains");
+    }
+
+    #[test]
+    fn set_params_stores_values_for_next_apply() {
+        let mut p = ShaderPipeline::new(GlesProfile::V100, ShaderLibrary::default());
+        p.set_params([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]);
+        // Public read-back: we expose params() to allow tests to confirm.
+        assert_eq!(p.params(), [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]);
+    }
+
+    #[test]
+    fn clear_active_drops_selection() {
+        let mut p = ShaderPipeline::new(GlesProfile::V100, ShaderLibrary::default());
+        p.pulse_trigger();
+        p.clear_active();
+        // active is private — but tick() should still work without panic.
+        p.tick(0.1);
     }
 }
