@@ -28,6 +28,8 @@ pub trait RackHandle {
     fn toggle_play_pause_now(&mut self);
     fn seek_relative_now(&mut self, seconds: f64);
     fn set_rate_now(&mut self, rate: f32);
+    fn trigger_shader(&mut self, name: &str, params: [f32; 8]);
+    fn clear_shader(&mut self);
 }
 
 pub fn apply<R: RackHandle>(action: Action, state: &mut SharedState, rack: &mut R) {
@@ -129,11 +131,56 @@ pub fn apply<R: RackHandle>(action: Action, state: &mut SharedState, rack: &mut 
         Action::SetRate(r) => rack.set_rate_now(r),
         Action::Reload => rack.reload_all(),
         Action::CycleSetting(id) => cycle_setting(state, id),
-        // Phase 2 shader actions — handled in Task 6.
-        Action::SelectShaderSlot(_)
-        | Action::TriggerShaderSlot(_)
-        | Action::ShaderParamAdjust(_)
-        | Action::ShaderParamSelect(_) => {}
+        Action::TriggerShaderSlot(n) => {
+            let n = (n as usize).min(crate::shader::SHADER_SLOTS_PER_BANK - 1);
+            let slot = state.current_shader_bank().slots.get(n).cloned().flatten();
+            match slot {
+                Some(slot) => {
+                    rack.trigger_shader(&slot.shader, slot.params);
+                    state.shader_active_slot = Some(n as u8);
+                }
+                None => {
+                    rack.clear_shader();
+                    state.shader_active_slot = None;
+                }
+            }
+        }
+        Action::SelectShaderSlot(n) => {
+            let n = (n as usize).min(crate::shader::SHADER_SLOTS_PER_BANK - 1);
+            if state.function_on {
+                if let Some(name) = state.shader_pending_select.take() {
+                    let bank = state.current_shader_bank_mut();
+                    bank.slots[n] = Some(crate::shader::ShaderSlot {
+                        shader: name,
+                        params: [0.0; 8],
+                    });
+                }
+            }
+            state.function_on = false;
+        }
+        Action::ShaderParamSelect(n) => {
+            state.shader_focus = n.min(7);
+        }
+        Action::ShaderParamAdjust(delta) => {
+            if state.control_mode != ControlMode::ShaderParam {
+                return;
+            }
+            let Some(active) = state.shader_active_slot else { return; };
+            let bank_idx = state.shader_bank_number as usize;
+            let focus = state.shader_focus as usize;
+            if let Some(Some(slot)) = state
+                .shader_banks
+                .get_mut(bank_idx)
+                .and_then(|b| b.slots.get_mut(active as usize))
+            {
+                // Step = 1% of [-1.0, 1.0] range as a default since we don't
+                // know the meta here. ShaderPipeline re-uploads clamped values
+                // on next frame.
+                let step = 0.02_f32 * delta as f32;
+                let v = (slot.params[focus] + step).clamp(-100.0, 100.0);
+                slot.params[focus] = v;
+            }
+        }
     }
 }
 
@@ -201,6 +248,8 @@ mod tests {
         position: Option<f64>,
         /// Reported by current_binding().
         binding: Option<(u8, u8)>,
+        shader_triggers: Vec<String>,
+        shader_cleared: u32,
     }
 
     impl RackHandle for SpyRack {
@@ -222,6 +271,63 @@ mod tests {
         }
         fn seek_relative_now(&mut self, _: f64) {}
         fn set_rate_now(&mut self, _: f32) {}
+        fn trigger_shader(&mut self, name: &str, _params: [f32; 8]) {
+            self.shader_triggers.push(name.to_string());
+        }
+        fn clear_shader(&mut self) {
+            self.shader_cleared += 1;
+        }
+    }
+
+    use crate::shader::ShaderSlot;
+
+    #[test]
+    fn select_shader_slot_with_function_off_triggers_pulse() {
+        let mut s = SharedState::new();
+        s.current_shader_bank_mut().slots[2] = Some(ShaderSlot {
+            shader: "color_shift".into(),
+            params: [0.0; 8],
+        });
+        let mut r = SpyRack::default();
+        apply(Action::TriggerShaderSlot(2), &mut s, &mut r);
+        assert_eq!(r.shader_triggers, vec!["color_shift".to_string()]);
+    }
+
+    #[test]
+    fn trigger_shader_slot_empty_clears_active() {
+        let mut s = SharedState::new();
+        let mut r = SpyRack::default();
+        apply(Action::TriggerShaderSlot(5), &mut s, &mut r);
+        assert_eq!(r.shader_cleared, 1);
+    }
+
+    #[test]
+    fn select_shader_slot_with_function_on_maps_into_slot() {
+        let mut s = SharedState::new();
+        s.function_on = true;
+        s.shader_focus = 4;
+        s.shader_pending_select = Some("pixelate".to_string());
+        let mut r = SpyRack::default();
+        apply(Action::SelectShaderSlot(3), &mut s, &mut r);
+        let slot = s.current_shader_bank().slots[3].as_ref().unwrap();
+        assert_eq!(slot.shader, "pixelate");
+        assert!(!s.function_on);
+    }
+
+    #[test]
+    fn shader_param_adjust_clamped_by_meta() {
+        let mut s = SharedState::new();
+        s.control_mode = ControlMode::ShaderParam;
+        s.shader_focus = 0;
+        s.current_shader_bank_mut().slots[0] = Some(ShaderSlot {
+            shader: "color_shift".into(),
+            params: [0.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        });
+        s.shader_active_slot = Some(0);
+        let mut r = SpyRack::default();
+        apply(Action::ShaderParamAdjust(1), &mut s, &mut r);
+        let slot = s.current_shader_bank().slots[0].as_ref().unwrap();
+        assert!(slot.params[0] > 0.5);
     }
 
     fn make_slot(name: &str) -> Slot {

@@ -190,6 +190,12 @@ impl RackHandle for PlayerRack {
     fn set_rate_now(&mut self, _rate: f32) {
         // ditto: deferred.
     }
+    fn trigger_shader(&mut self, _name: &str, _params: [f32; 8]) {
+        // Wired in Task 12.
+    }
+    fn clear_shader(&mut self) {
+        // Wired in Task 12.
+    }
 }
 
 #[cfg(test)]

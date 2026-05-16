@@ -169,6 +169,11 @@ pub struct SharedState {
     pub shader_bank_number: u8,
     pub shader_focus: u8,
     pub gles_profile: GlesProfile,
+    /// Browser-selected shader name awaiting a slot mapping (set by SHADERS
+    /// browser, consumed by Action::SelectShaderSlot when function_on is set).
+    pub shader_pending_select: Option<String>,
+    /// Currently triggered shader-bank slot (0..=9). None = bypass.
+    pub shader_active_slot: Option<u8>,
 }
 
 impl SharedState {
@@ -188,6 +193,8 @@ impl SharedState {
             shader_bank_number: 0,
             shader_focus: 0,
             gles_profile: GlesProfile::default_for_build(),
+            shader_pending_select: None,
+            shader_active_slot: None,
         }
     }
 
