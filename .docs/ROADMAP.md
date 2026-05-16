@@ -10,9 +10,9 @@ _(none)_
 
 ## Recently Shipped
 
+- **Phase 2 sub-plan B — conjur UI + persistence** (2026-05-16): SHADERS browser, SHDR_BNK shader bank, `shader_banks.toml`, `--gles-profile` CLI flag, hot-reload via `notify`, 4 starter shaders (color_shift, pixelate, kaleidoscope, rgb_glitch). Codec probe remains in sub-plan C.
+- **Phase 2 sub-plan A — shader infrastructure** (2026-05-16): `src/shader/` module, GLES-split preludes, shader_assembly, ShaderPipeline (FBO + compile cache), wired into both render backends, passthrough demo. See `docs/superpowers/specs/2026-05-16-conjur-design.md`.
 - **Dual-target spec** (2026-05-16): pi3 + pi5 cargo features, per-shader GLES gating rules, byte-budgeted detour ring rules, desktop dev defaults to pi5 parity. Foundation only — phase-2/3 implementation pending. See `docs/superpowers/specs/2026-05-16-pi5-target-revision-design.md`.
-- **Render backend** (2026-05-12): real desktop GL render via winit + glutin + glow; video frames now display in a window. Pi cross-build via `cross build --no-default-features --features pi` verified compiling to `aarch64-unknown-linux-gnu` (real-Pi runtime testing pending hardware access).
-- **Phase 1 — r_e_c_u_r-core** (2026-05-12): file playback, sample bank, loop points, sampler modes, Browser/Sampler/Settings menus, desktop keyboard control. 80+ unit tests; headless smoke runs `--smoke-frames N`. GL render backend + Pi cross-build deferred to a follow-up; ScreenStack + apply pipeline + GStreamer player rack all in place.
 
 ## Design Notes
 
@@ -31,7 +31,7 @@ Each phase = its own design spec + implementation plan + ship cycle.
 | ID | Phase | Status | Key files / dirs |
 |---|---|---|---|
 | 1 | **r_e_c_u_r-core** — file playback, sample bank, loop points, sampler modes, Browser/Sampler/Settings menus, desktop keyboard control | ✅ | `src/video/`, `src/sample/`, `src/menu/`, `src/input/winit_src.rs` |
-| 2 | **conjur** — GLSL shader layer over video sources; scene system from mandleROT. pi3 (GLSL 1.00) + pi5 (GLSL 3.10) per-shader gating | ☐ | `src/shader/`, `shaders/`, `scenes/` |
+| 2 | **conjur** — GLSL shader layer over video sources; scene system from mandleROT. pi3 (GLSL 1.00) + pi5 (GLSL 3.10) per-shader gating. *Sub-plans A + B shipped; C (codec probe) pending* | ◐ | `src/shader/`, `shaders/`, `src/menu/{shaders,shdr_bnk,param}.rs` |
 | 3 | **detour** — in-memory frame ring (~500 frames), scrubbing, speed/direction control | ☐ | `src/detour/` |
 | 4 | **captur** — USB v4l2 / CSI live-capture as a video source, slot-mapped | ☐ | `src/video/capture.rs` |
 | 5 | **Pi inputs** — GPIO matrix (`i_n_c_u_r` PCB), USB MIDI, analog ADC over I2C (`pi-base` feature) | ☐ | `src/input/{gpio,midi,adc}.rs` |
