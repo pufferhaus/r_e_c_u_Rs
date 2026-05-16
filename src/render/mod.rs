@@ -7,6 +7,8 @@ mod pi;
 mod shader;
 pub mod shader_assembly;
 #[cfg(any(feature = "desktop", feature = "pi-base"))]
+pub mod shader_pipeline;
+#[cfg(any(feature = "desktop", feature = "pi-base"))]
 mod text;
 
 #[cfg(feature = "desktop")]
