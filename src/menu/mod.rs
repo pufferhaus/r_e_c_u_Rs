@@ -1,4 +1,5 @@
 pub mod browser;
+pub mod param;
 pub mod root;
 pub mod sampler;
 pub mod settings;

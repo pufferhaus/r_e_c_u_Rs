@@ -194,8 +194,11 @@ fn main() -> anyhow::Result<()> {
         let actions: Vec<Action> = Vec::new();
 
         for action in actions {
-            let _consumed = stack.dispatch(action.clone(), &mut state);
+            let synth = stack.dispatch(action.clone(), &mut state);
             apply(action, &mut state, &mut rack);
+            if let Some(synth_action) = synth {
+                apply(synth_action, &mut state, &mut rack);
+            }
         }
 
         // 2. Rack tick

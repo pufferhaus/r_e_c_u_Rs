@@ -18,6 +18,10 @@ pub enum ScreenResult {
     /// Push a new screen on top. The old screen is preserved underneath and
     /// becomes active again once the new one pops.
     Push(Box<dyn Screen>),
+    /// Synthesise an action for the apply loop. Use this when a screen wants to
+    /// produce an Action without directly mutating state (so the central
+    /// apply.rs path still gets to enforce invariants).
+    Action(crate::action::Action),
 }
 
 /// A menu screen that can paint itself into a `TextGrid` and respond to
@@ -64,26 +68,26 @@ impl ScreenStack {
     }
 
     /// Dispatch an action to the top screen and apply the resulting
-    /// `ScreenResult`. Returns `true` if a screen was open and consumed the
-    /// action.
-    pub fn dispatch(&mut self, action: Action, state: &mut SharedState) -> bool {
+    /// `ScreenResult`. Returns `Some(synth_action)` if the screen wants the
+    /// apply loop to run another action; `None` otherwise (or if no screen is open).
+    pub fn dispatch(&mut self, action: Action, state: &mut SharedState) -> Option<Action> {
         if self.stack.is_empty() {
-            return false;
+            return None;
         }
-        let Some(top) = self.stack.last_mut() else {
-            return false;
-        };
+        let top = self.stack.last_mut()?;
         let result = top.handle(action, state);
         match result {
-            ScreenResult::Continue => {}
+            ScreenResult::Continue => None,
             ScreenResult::Pop => {
                 self.stack.pop();
+                None
             }
             ScreenResult::Push(s) => {
                 self.stack.push(s);
+                None
             }
+            ScreenResult::Action(a) => Some(a),
         }
-        true
     }
 }
 
@@ -121,10 +125,10 @@ mod tests {
     }
 
     #[test]
-    fn dispatch_on_empty_returns_false() {
+    fn dispatch_on_empty_returns_none() {
         let mut s = ScreenStack::new();
         let mut state = SharedState::new();
-        assert!(!s.dispatch(Action::Back, &mut state));
+        assert_eq!(s.dispatch(Action::Back, &mut state), None);
     }
 
     #[test]
@@ -140,8 +144,8 @@ mod tests {
         let mut s = ScreenStack::new();
         s.push(Box::new(Dummy { pops_after: 1, count: 0 }));
         let mut state = SharedState::new();
-        let consumed = s.dispatch(Action::Back, &mut state);
-        assert!(consumed);
+        let synth = s.dispatch(Action::Back, &mut state);
+        assert_eq!(synth, None);
         assert!(!s.is_open());
     }
 
