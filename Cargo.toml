@@ -56,7 +56,8 @@ pi3 = ["pi-base"]
 pi5 = ["pi-base"]
 
 # Deprecated alias: `pi` was the original Pi 3 B+ feature. Maps to pi3 for one
-# release. Remove after 0.2.0. build.rs prints a warning when this is active.
+# release. Remove after 0.2.0. No build-time warning is emitted (cargo collapses
+# the alias before build.rs runs).
 pi = ["pi3"]
 
 [dev-dependencies]

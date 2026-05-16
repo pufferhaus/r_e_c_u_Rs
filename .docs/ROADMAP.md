@@ -34,7 +34,7 @@ Each phase = its own design spec + implementation plan + ship cycle.
 | 2 | **conjur** — GLSL shader layer over video sources; scene system from mandleROT. pi3 (GLSL 1.00) + pi5 (GLSL 3.10) per-shader gating | ☐ | `src/shader/`, `shaders/`, `scenes/` |
 | 3 | **detour** — in-memory frame ring (~500 frames), scrubbing, speed/direction control | ☐ | `src/detour/` |
 | 4 | **captur** — USB v4l2 / CSI live-capture as a video source, slot-mapped | ☐ | `src/video/capture.rs` |
-| 5 | **Pi inputs** — GPIO matrix (`i_n_c_u_r` PCB), USB MIDI, analog ADC over I2C (`pi` feature flag) | ☐ | `src/input/{gpio,midi,adc}.rs` |
+| 5 | **Pi inputs** — GPIO matrix (`i_n_c_u_r` PCB), USB MIDI, analog ADC over I2C (`pi-base` feature) | ☐ | `src/input/{gpio,midi,adc}.rs` |
 
 Active phase = lowest-numbered row with ☐.
 
