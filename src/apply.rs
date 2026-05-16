@@ -144,6 +144,7 @@ pub fn apply<R: RackHandle>(action: Action, state: &mut SharedState, rack: &mut 
                     state.shader_active_slot = None;
                 }
             }
+            state.function_on = false;
         }
         Action::SelectShaderSlot(n) => {
             let n = (n as usize).min(crate::shader::SHADER_SLOTS_PER_BANK - 1);
@@ -497,5 +498,14 @@ mod tests {
         assert_eq!(slot.start, -1.0);
         assert_eq!(slot.end, -1.0);
         assert_eq!(r.reload_count, 1);
+    }
+
+    #[test]
+    fn trigger_shader_slot_clears_function_latch() {
+        let mut s = SharedState::new();
+        s.function_on = true;
+        let mut r = SpyRack::default();
+        apply(Action::TriggerShaderSlot(0), &mut s, &mut r);
+        assert!(!s.function_on, "TriggerShaderSlot must clear function_on like SelectSlot does");
     }
 }
