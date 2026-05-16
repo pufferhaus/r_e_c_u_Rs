@@ -218,4 +218,22 @@ mod tests {
         assert!(lib.get("passthrough").is_some(), "passthrough should load from real shaders/ dir");
         assert!(lib.get("__safe__").is_some(), "baked safe-shader still present");
     }
+
+    #[test]
+    fn all_starter_shaders_load_under_v100() {
+        use std::path::PathBuf;
+        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("shaders");
+        let lib = ShaderLibrary::load_dir_for_profile(&dir, GlesVersion::V100).unwrap();
+        for name in ["passthrough", "color_shift", "pixelate", "kaleidoscope", "rgb_glitch"] {
+            assert!(lib.get(name).is_some(), "starter shader {name} missing");
+        }
+    }
+
+    #[test]
+    fn starter_shaders_have_no_v310_only_filtered() {
+        use std::path::PathBuf;
+        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("shaders");
+        let lib = ShaderLibrary::load_dir_for_profile(&dir, GlesVersion::V100).unwrap();
+        assert_eq!(lib.filtered_count(), 0, "no starter shader should be v310-only");
+    }
 }

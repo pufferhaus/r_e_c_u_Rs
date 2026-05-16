@@ -1,0 +1,19 @@
+name = "kaleidoscope"
+display_name = "Kaleidoscope"
+min_gles = "1.00"
+
+[[params]]
+slot = 0
+name = "wedges"
+min = 0.0
+max = 1.0
+default = 0.3
+curve = "linear"
+
+[[params]]
+slot = 1
+name = "rotation"
+min = -1.0
+max = 1.0
+default = 0.0
+curve = "linear"

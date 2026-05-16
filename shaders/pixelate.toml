@@ -1,0 +1,11 @@
+name = "pixelate"
+display_name = "Pixelate"
+min_gles = "1.00"
+
+[[params]]
+slot = 0
+name = "block"
+min = 0.0
+max = 1.0
+default = 0.25
+curve = "linear"

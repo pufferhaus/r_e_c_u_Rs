@@ -1,0 +1,27 @@
+name = "color_shift"
+display_name = "Color Shift"
+min_gles = "1.00"
+
+[[params]]
+slot = 0
+name = "hue"
+min = -1.0
+max = 1.0
+default = 0.0
+curve = "linear"
+
+[[params]]
+slot = 1
+name = "sat"
+min = -1.0
+max = 1.0
+default = 0.0
+curve = "linear"
+
+[[params]]
+slot = 2
+name = "val"
+min = -1.0
+max = 1.0
+default = 0.0
+curve = "linear"
