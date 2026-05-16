@@ -53,7 +53,7 @@ pub struct WinitGlTarget {
 }
 
 impl WinitGlTarget {
-    pub fn new(width: u32, height: u32, title: &str) -> anyhow::Result<Self> {
+    pub fn new(width: u32, height: u32, title: &str, profile: crate::render::shader_assembly::GlesProfile) -> anyhow::Result<Self> {
         let event_loop = EventLoop::new()
             .map_err(|e| anyhow::anyhow!("event loop: {e}"))?;
 
@@ -181,14 +181,11 @@ impl WinitGlTarget {
         let text = unsafe { TextOverlay::new(&gl)? };
 
         let shaders_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("shaders");
-        // Desktop OpenGL (macOS) accepts only GLSL ES 1.00 (#version 100).
-        // default_for_build() returns V310 for desktop but that is GLES-only syntax.
-        // Use V100 explicitly; sub-plan B will add a --gles-profile CLI override.
-        let profile = crate::render::shader_assembly::GlesProfile::V100;
-        let library = crate::shader::ShaderLibrary::load_dir_for_profile(
-            &shaders_dir,
-            crate::shader::GlesVersion::V100,
-        )?;
+        let min_gles = match profile {
+            crate::render::shader_assembly::GlesProfile::V100 => crate::shader::GlesVersion::V100,
+            crate::render::shader_assembly::GlesProfile::V310 => crate::shader::GlesVersion::V310,
+        };
+        let library = crate::shader::ShaderLibrary::load_dir_for_profile(&shaders_dir, min_gles)?;
         let mut pipeline = crate::render::shader_pipeline::ShaderPipeline::new(profile, library);
         // SAFETY: GL context made current above (gl_context is .make_current()-ed).
         unsafe {

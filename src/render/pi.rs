@@ -294,7 +294,7 @@ pub struct PiTarget {
 }
 
 impl PiTarget {
-    pub fn new(w: u32, h: u32, _title: &str) -> anyhow::Result<Self> {
+    pub fn new(w: u32, h: u32, _title: &str, profile: crate::render::shader_assembly::GlesProfile) -> anyhow::Result<Self> {
         let ctx = PiContext::create(w, h)?;
 
         let program = unsafe { shader::compile_program(&ctx.gl, shader::VERT, shader::FRAG)? };
@@ -340,12 +340,11 @@ impl PiTarget {
         let text = unsafe { TextOverlay::new(&ctx.gl)? };
 
         let shaders_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("shaders");
-        let profile = crate::render::shader_assembly::GlesProfile::default_for_build();
-        let gles_version = match profile {
+        let min_gles = match profile {
             crate::render::shader_assembly::GlesProfile::V100 => crate::shader::GlesVersion::V100,
             crate::render::shader_assembly::GlesProfile::V310 => crate::shader::GlesVersion::V310,
         };
-        let library = crate::shader::ShaderLibrary::load_dir_for_profile(&shaders_dir, gles_version)?;
+        let library = crate::shader::ShaderLibrary::load_dir_for_profile(&shaders_dir, min_gles)?;
         let mut pipeline = crate::render::shader_pipeline::ShaderPipeline::new(profile, library);
         // SAFETY: EGL context made current above.
         unsafe {

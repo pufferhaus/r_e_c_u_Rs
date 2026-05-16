@@ -20,6 +20,36 @@ use recur::video::rack::PlayerRack;
 #[cfg(feature = "desktop")]
 use recur::input::winit_src::WinitSource;
 
+/// CLI alias for the runtime GLES profile (separate from the clap-internal enum
+/// so we can rename without breaking scripts).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+enum GlesProfileArg {
+    /// GLSL ES 1.00 — pi3 parity.
+    #[value(alias = "pi3", alias = "v100")]
+    V100,
+    /// GLSL ES 3.10 — pi5 parity (default).
+    #[value(alias = "pi5", alias = "v310")]
+    V310,
+}
+
+impl GlesProfileArg {
+    fn to_profile(self) -> recur::render::shader_assembly::GlesProfile {
+        use recur::render::shader_assembly::GlesProfile;
+        match self {
+            GlesProfileArg::V100 => GlesProfile::V100,
+            GlesProfileArg::V310 => GlesProfile::V310,
+        }
+    }
+    #[allow(dead_code)]
+    fn to_min_gles(self) -> recur::shader::GlesVersion {
+        use recur::shader::GlesVersion;
+        match self {
+            GlesProfileArg::V100 => GlesVersion::V100,
+            GlesProfileArg::V310 => GlesVersion::V310,
+        }
+    }
+}
+
 #[derive(Parser, Debug)]
 struct Args {
     /// Render N frames then exit (for smoke tests).
@@ -33,6 +63,11 @@ struct Args {
     /// Path to keymap.toml.
     #[arg(long, default_value = "keymap.toml")]
     keymap: PathBuf,
+
+    /// GLES profile to load shaders against. `pi3`/`v100` filters out 3.10-only
+    /// shaders; default `pi5`/`v310` loads all.
+    #[arg(long, value_enum, default_value_t = GlesProfileArg::V310)]
+    gles_profile: GlesProfileArg,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -61,6 +96,24 @@ fn main() -> anyhow::Result<()> {
     state.sampler = settings;
     state.paths_to_browser = paths;
 
+    let profile = args.gles_profile.to_profile();
+    state.gles_profile = profile;
+
+    #[cfg(feature = "pi3")]
+    {
+        if args.gles_profile == GlesProfileArg::V310 {
+            tracing::warn!("--gles-profile v310 ignored on pi3 build; forcing V100");
+            state.gles_profile = recur::render::shader_assembly::GlesProfile::V100;
+        }
+    }
+    #[cfg(feature = "pi5")]
+    {
+        if args.gles_profile == GlesProfileArg::V100 {
+            tracing::warn!("--gles-profile v100 ignored on pi5 build; forcing V310");
+            state.gles_profile = recur::render::shader_assembly::GlesProfile::V310;
+        }
+    }
+
     let sampler_settings = state.sampler.clone();
     let mut rack = PlayerRack::new(sampler_settings);
     let mut grid = TextGrid::new(48, 17);
@@ -80,7 +133,7 @@ fn main() -> anyhow::Result<()> {
     #[cfg(not(feature = "desktop"))]
     let _ = keymap; // suppress unused warning
 
-    let mut render = recur::render::Render::new(cfg.render.width, cfg.render.height, "r_e_c_u_r")?;
+    let mut render = recur::render::Render::new(cfg.render.width, cfg.render.height, "r_e_c_u_r", state.gles_profile)?;
 
     #[cfg(debug_assertions)]
     {
@@ -178,4 +231,22 @@ fn main() -> anyhow::Result<()> {
     persist::save_settings(&state_dir, &state.sampler)?;
     persist::save_paths(&state_dir, &state.paths_to_browser)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::Parser;
+
+    #[test]
+    fn gles_profile_defaults_to_v310() {
+        let a = Args::parse_from(["recur"]);
+        assert_eq!(a.gles_profile, GlesProfileArg::V310);
+    }
+
+    #[test]
+    fn gles_profile_pi3_alias_parses_to_v100() {
+        let a = Args::parse_from(["recur", "--gles-profile", "pi3"]);
+        assert_eq!(a.gles_profile, GlesProfileArg::V100);
+    }
 }

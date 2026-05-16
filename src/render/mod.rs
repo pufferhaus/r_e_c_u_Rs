@@ -22,7 +22,7 @@ pub use pi::PiTarget as Render;
 mod stub {
     pub struct Render;
     impl Render {
-        pub fn new(_w: u32, _h: u32, _t: &str) -> anyhow::Result<Self> {
+        pub fn new(_w: u32, _h: u32, _t: &str, _p: crate::render::shader_assembly::GlesProfile) -> anyhow::Result<Self> {
             Ok(Self)
         }
         pub fn pump(&mut self) -> Vec<()> {
