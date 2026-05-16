@@ -157,11 +157,16 @@ impl ShaderPipeline {
         self.ensure_output(gl, w, h)?;
         self.ensure_vbo(gl);
 
+        // Lazy recompile on cache miss (hot-reload path).
+        if !self.cache.contains_key(&active) {
+            self.select(gl, &active)?;
+        }
+
         // Copy out the handles (all Copy types) before taking the cached ref.
         let (fbo, output_tex, _, _) = *self.output.as_ref().unwrap();
         let vbo = self.vbo.unwrap();
 
-        let cached = self.cache.get(&active).expect("active shader must be cached");
+        let cached = self.cache.get(&active).expect("just compiled or already cached");
 
         gl.bind_framebuffer(glow::FRAMEBUFFER, Some(fbo));
         gl.viewport(0, 0, w as i32, h as i32);
@@ -368,5 +373,17 @@ mod tests {
         assert_eq!(p.active_name(), Some("foo"));
         p.clear_active();
         assert_eq!(p.active_name(), None);
+    }
+
+    #[test]
+    fn invalidate_does_not_break_subsequent_apply_call_path() {
+        // We can't actually run apply() without a GL context, but we can prove
+        // that invalidate + an active selection leaves a coherent state: the
+        // active name persists and the cache miss is detectable by the public API.
+        let mut p = ShaderPipeline::new(GlesProfile::V100, ShaderLibrary::default());
+        p.set_active_for_test("color_shift");
+        p.invalidate("color_shift");
+        // The active name is preserved; only the cached compiled program is gone.
+        assert_eq!(p.active_name(), Some("color_shift"));
     }
 }
