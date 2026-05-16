@@ -319,7 +319,10 @@ impl WinitGlTarget {
             let shaded = self
                 .pipeline
                 .apply(gl, self.texture, w, h, sw, sh, t)
-                .unwrap_or(self.texture);
+                .unwrap_or_else(|e| {
+                    tracing::warn!("shader apply failed, falling back to source texture: {e}");
+                    self.texture
+                });
 
             gl.use_program(Some(self.program));
 

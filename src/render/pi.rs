@@ -340,8 +340,12 @@ impl PiTarget {
         let text = unsafe { TextOverlay::new(&ctx.gl)? };
 
         let shaders_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("shaders");
-        let library = crate::shader::ShaderLibrary::load_dir(&shaders_dir)?;
         let profile = crate::render::shader_assembly::GlesProfile::default_for_build();
+        let gles_version = match profile {
+            crate::render::shader_assembly::GlesProfile::V100 => crate::shader::GlesVersion::V100,
+            crate::render::shader_assembly::GlesProfile::V310 => crate::shader::GlesVersion::V310,
+        };
+        let library = crate::shader::ShaderLibrary::load_dir_for_profile(&shaders_dir, gles_version)?;
         let mut pipeline = crate::render::shader_pipeline::ShaderPipeline::new(profile, library);
         // SAFETY: EGL context made current above.
         unsafe {
@@ -420,7 +424,10 @@ impl PiTarget {
             let shaded = self
                 .pipeline
                 .apply(gl, self.texture, w, h, sw, sh, t)
-                .unwrap_or(self.texture);
+                .unwrap_or_else(|e| {
+                    tracing::warn!("shader apply failed, falling back to source texture: {e}");
+                    self.texture
+                });
 
             gl.use_program(Some(self.program));
 
