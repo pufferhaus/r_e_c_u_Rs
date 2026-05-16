@@ -187,7 +187,7 @@ impl SharedState {
             shader_banks: vec![ShaderBank::empty()],
             shader_bank_number: 0,
             shader_focus: 0,
-            gles_profile: GlesProfile::V310,
+            gles_profile: GlesProfile::default_for_build(),
         }
     }
 
@@ -287,14 +287,14 @@ mod tests {
     }
 
     #[test]
-    fn shared_state_has_empty_shader_bank_and_v310_profile_by_default() {
+    fn shared_state_has_empty_shader_bank_and_default_profile() {
         let s = SharedState::new();
         assert_eq!(s.shader_banks.len(), 1);
         assert_eq!(s.shader_banks[0].slots.len(), 10);
         assert!(s.shader_banks[0].slots.iter().all(Option::is_none));
         assert_eq!(s.shader_bank_number, 0);
         assert_eq!(s.shader_focus, 0);
-        assert_eq!(s.gles_profile, crate::render::shader_assembly::GlesProfile::V310);
+        assert_eq!(s.gles_profile, crate::render::shader_assembly::GlesProfile::default_for_build());
     }
 
     #[test]
