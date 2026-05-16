@@ -27,13 +27,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - name: Install GStreamer dev libs
+      - name: Install GStreamer + GL dev libs
         run: |
           sudo apt-get update
           sudo apt-get install -y \
             libgstreamer1.0-dev \
             libgstreamer-plugins-base1.0-dev \
+            libgstreamer-plugins-bad1.0-dev \
             libglib2.0-dev \
+            libgl1-mesa-dev \
             pkg-config
       - run: cargo test --lib
 
@@ -43,13 +45,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - name: Install GStreamer dev libs
+      - name: Install GStreamer + GL dev libs
         run: |
           sudo apt-get update
           sudo apt-get install -y \
             libgstreamer1.0-dev \
             libgstreamer-plugins-base1.0-dev \
+            libgstreamer-plugins-bad1.0-dev \
             libglib2.0-dev \
+            libgl1-mesa-dev \
             pkg-config
       # The --gles-profile pi3 flag is not yet implemented (Phase 2 work).
       # This lane currently runs the same test suite as the default lane;
