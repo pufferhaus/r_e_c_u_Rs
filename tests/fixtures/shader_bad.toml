@@ -1,0 +1,5 @@
+name = "broken"
+[[params]]
+slot = 0
+name = "a"
+# missing min/max/default

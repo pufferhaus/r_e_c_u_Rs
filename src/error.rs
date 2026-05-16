@@ -31,6 +31,19 @@ pub enum Error {
 
     #[error("other: {0}")]
     Other(String),
+
+    #[error("shader meta parse failed for {file}: {source}")]
+    ShaderMeta {
+        file: String,
+        #[source]
+        source: toml::de::Error,
+    },
+
+    #[error("shader compile/validate: {0}")]
+    ShaderCompile(String),
+
+    #[error("shader not found: {0}")]
+    ShaderNotFound(String),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

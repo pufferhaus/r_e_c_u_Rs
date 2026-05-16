@@ -1,0 +1,21 @@
+name = "test_shader"
+display_name = "Test"
+min_gles = "1.00"
+
+[[params]]
+slot = 0
+name = "hue"
+min = -1.0
+max = 1.0
+default = 0.0
+curve = "linear"
+audio_route = "bass"
+audio_amount = 0.2
+
+[[params]]
+slot = 1
+name = "speed"
+min = 0.0
+max = 4.0
+default = 1.0
+curve = "exp"
