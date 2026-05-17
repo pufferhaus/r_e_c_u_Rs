@@ -269,6 +269,43 @@ fn main() -> anyhow::Result<()> {
             state.active_recording = None;
         }
 
+        // Phase 4b — disk-space monitor: every 10s while recording, re-check free space.
+        let should_stop_for_disk = {
+            if let Some(rec) = state.active_recording.as_ref() {
+                use std::time::Duration;
+                if rec.last_disk_check.elapsed() >= Duration::from_secs(10)
+                    && rec.state == recur::capture::recording::RecState::Recording
+                {
+                    let dir = rec
+                        .file_path
+                        .parent()
+                        .map(|p| p.to_path_buf())
+                        .unwrap_or_else(|| std::env::temp_dir());
+                    !recur::capture::recording::check_disk_space(&dir, 10)
+                } else {
+                    false
+                }
+            } else {
+                false
+            }
+        };
+        if should_stop_for_disk {
+            rack.stop_recording();
+            if let Some(rec) = state.active_recording.as_mut() {
+                rec.state = recur::capture::recording::RecState::Finalizing;
+                rec.last_disk_check = std::time::Instant::now();
+            }
+            state.last_error = Some("disk full, recording stopped".to_string());
+        } else if let Some(rec) = state.active_recording.as_mut() {
+            // Update the timestamp on every poll where 10s has elapsed but disk was fine.
+            use std::time::Duration;
+            if rec.last_disk_check.elapsed() >= Duration::from_secs(10)
+                && rec.state == recur::capture::recording::RecState::Recording
+            {
+                rec.last_disk_check = std::time::Instant::now();
+            }
+        }
+
         // Drain shader commands from the rack channel.
         for cmd in shader_rx.try_iter() {
             use recur::video::rack::ShaderCommand;
