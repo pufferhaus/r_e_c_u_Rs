@@ -9,7 +9,11 @@ pub struct DetourSettings {
     pub speed: f32,
     pub forward: bool,
     pub mix: f32,
+    /// Ring logical index (0=oldest). Meaning shifts when the ring wraps and
+    /// older frames age out — markers are not absolute timestamps. Cleared via
+    /// `DetourClearMarkers`.
     pub start_marker: Option<usize>,
+    /// Ring logical index (0=oldest). Same drift semantics as `start_marker`.
     pub end_marker: Option<usize>,
     pub read_position: usize,
     pub auto_play: bool,

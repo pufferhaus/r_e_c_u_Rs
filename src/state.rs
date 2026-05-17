@@ -185,6 +185,8 @@ pub struct SharedState {
 
     // Detour (Phase 3)
     pub detour: DetourSettings,
+    /// Display mode active before entering DetourScrub, restored on DetourExit.
+    pub display_mode_before_detour: Option<DisplayMode>,
     /// Latest ring stats, updated each frame by main.rs.
     pub frames_stats_count: usize,
     pub frames_stats_capacity: usize,
@@ -215,6 +217,7 @@ impl SharedState {
             probe_cache: ProbeCache::default(),
             probe_tx: None,
             detour: DetourSettings::default(),
+            display_mode_before_detour: None,
             frames_stats_count: 0,
             frames_stats_capacity: 0,
             frames_stats_used_mb: 0,

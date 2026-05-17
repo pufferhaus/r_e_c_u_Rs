@@ -167,11 +167,15 @@ pub fn apply<R: RackHandle>(action: Action, state: &mut SharedState, rack: &mut 
             state.shader_focus = n.min(7);
         }
         Action::DetourEnter => {
+            state.display_mode_before_detour = Some(state.display_mode);
             state.control_mode = ControlMode::DetourScrub;
             state.display_mode = DisplayMode::Frames;
         }
         Action::DetourExit => {
             state.control_mode = ControlMode::Default;
+            if let Some(prev) = state.display_mode_before_detour.take() {
+                state.display_mode = prev;
+            }
         }
         Action::DetourScrubBy(delta) => {
             if state.control_mode == ControlMode::DetourScrub {
@@ -605,6 +609,18 @@ mod tests {
         let mut r = SpyRack::default();
         apply(Action::DetourExit, &mut s, &mut r);
         assert_eq!(s.control_mode, ControlMode::Default);
+    }
+
+    #[test]
+    fn detour_exit_restores_prior_display_mode() {
+        let mut s = SharedState::new();
+        s.display_mode = DisplayMode::Sampler;
+        let mut r = SpyRack::default();
+        apply(Action::DetourEnter, &mut s, &mut r);
+        assert_eq!(s.display_mode, DisplayMode::Frames);
+        apply(Action::DetourExit, &mut s, &mut r);
+        assert_eq!(s.display_mode, DisplayMode::Sampler);
+        assert!(s.display_mode_before_detour.is_none());
     }
 
     #[test]
