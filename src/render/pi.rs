@@ -452,6 +452,15 @@ impl PiTarget {
         }
     }
 
+    /// Alpha-blend `rgba` over the previously drawn video layer at `mix` opacity.
+    /// Reuses `draw_video_layer` with `alpha = mix`; early-returns when mix ≤ 0.
+    pub fn draw_detour_layer(&mut self, rgba: &[u8], w: u32, h: u32, mix: f32) {
+        if mix <= 0.0 {
+            return;
+        }
+        self.draw_video_layer(rgba, w, h, mix.clamp(0.0, 1.0));
+    }
+
     /// Draw the menu/status text grid as a full-screen overlay on top of the
     /// video layer.
     pub fn draw_text_grid(&mut self, grid: &crate::status::grid::TextGrid) {

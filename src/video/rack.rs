@@ -12,6 +12,11 @@ pub enum ShaderCommand {
     Clear,
 }
 
+#[derive(Debug, Clone)]
+pub enum DetourCommand {
+    ScrubBy(i32),
+}
+
 use crate::apply::RackHandle;
 use crate::error::Result;
 use crate::state::{Bank, LoopType, OnFinish, SamplerSettings, Slot};
@@ -36,6 +41,9 @@ pub struct PlayerRack {
     /// Channel to the render thread for shader commands. Set by main.rs after
     /// the channel pair is created. None until wired up.
     shader_tx: Option<Sender<ShaderCommand>>,
+    /// Channel to the main loop for detour commands. Set by main.rs after
+    /// the channel pair is created. None until wired up.
+    detour_tx: Option<Sender<DetourCommand>>,
 }
 
 impl PlayerRack {
@@ -50,11 +58,16 @@ impl PlayerRack {
             current_binding: None,
             last_bank: Bank::empty(),
             shader_tx: None,
+            detour_tx: None,
         }
     }
 
     pub fn set_shader_channel(&mut self, tx: Sender<ShaderCommand>) {
         self.shader_tx = Some(tx);
+    }
+
+    pub fn set_detour_channel(&mut self, tx: Sender<DetourCommand>) {
+        self.detour_tx = Some(tx);
     }
 
     fn alloc_layer(&mut self) -> u32 {
@@ -221,8 +234,10 @@ impl RackHandle for PlayerRack {
             let _ = tx.send(ShaderCommand::SetParams(params));
         }
     }
-    fn detour_scrub_by(&mut self, _delta: i32) {
-        // Wired in T9 (channel to main loop).
+    fn detour_scrub_by(&mut self, delta: i32) {
+        if let Some(tx) = &self.detour_tx {
+            let _ = tx.send(DetourCommand::ScrubBy(delta));
+        }
     }
 }
 
@@ -297,5 +312,15 @@ mod tests {
         r.current.last_error = Some("decode failed".into());
         assert_eq!(r.drain_last_error(), Some("decode failed".into()));
         assert!(r.drain_last_error().is_none());
+    }
+
+    #[test]
+    fn detour_scrub_sends_command_when_channel_set() {
+        let mut r = PlayerRack::new(SamplerSettings::default());
+        let (tx, rx) = crossbeam_channel::unbounded();
+        r.set_detour_channel(tx);
+        use crate::apply::RackHandle;
+        r.detour_scrub_by(-5);
+        assert!(matches!(rx.try_recv(), Ok(DetourCommand::ScrubBy(-5))));
     }
 }

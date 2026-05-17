@@ -350,6 +350,15 @@ impl WinitGlTarget {
         }
     }
 
+    /// Alpha-blend `rgba` over the previously drawn video layer at `mix` opacity.
+    /// Reuses `draw_video_layer` with `alpha = mix`; early-returns when mix ≤ 0.
+    pub fn draw_detour_layer(&mut self, rgba: &[u8], w: u32, h: u32, mix: f32) {
+        if mix <= 0.0 {
+            return;
+        }
+        self.draw_video_layer(rgba, w, h, mix.clamp(0.0, 1.0));
+    }
+
     /// Draw the menu/status text grid as a full-window overlay on top of the
     /// video layer. The grid's background is rendered semi-transparent so the
     /// video bleeds through; glyph pixels themselves are fully opaque.
