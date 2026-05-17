@@ -316,5 +316,6 @@ mod tests {
         assert_eq!(km.lookup("KeyP"), Some(Action::DetourSetEndMarker));
         assert_eq!(km.lookup("KeyX"), Some(Action::DetourClearMarkers));
         assert_eq!(km.lookup("KeyM"), Some(Action::DetourCycleMix));
+        assert_eq!(km.lookup("KeyC"), Some(Action::AddCaptureSlot));
     }
 }

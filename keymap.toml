@@ -50,3 +50,4 @@
 "KeyP" = "DetourSetEndMarker"
 "KeyX" = "DetourClearMarkers"
 "KeyM" = "DetourCycleMix"
+"KeyC" = "AddCaptureSlot"

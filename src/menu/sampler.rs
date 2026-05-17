@@ -55,8 +55,16 @@ impl Screen for SamplerBody {
 }
 
 fn fmt_slot_row(idx: usize, s: &Slot) -> String {
-    let base = s.name.rsplit_once('.').map(|(a, _)| a).unwrap_or(&s.name);
-    let truncated: String = base.chars().take(17).collect();
+    let display_name = match &s.source {
+        crate::state::SourceKind::File(_) => {
+            let base = s.name.rsplit_once('.').map(|(a, _)| a).unwrap_or(&s.name);
+            base.to_string()
+        }
+        crate::state::SourceKind::Capture(_) => {
+            format!("[cap] {}", s.name)
+        }
+    };
+    let truncated: String = display_name.chars().take(17).collect();
     format!(
         "{:^6} {:<17} {:>5} {:>5} {:<5}",
         idx,
@@ -113,5 +121,20 @@ mod tests {
         // Should not panic.
         let row = fmt_slot_row(7, &s);
         assert!(row.contains("7"));
+    }
+
+    #[test]
+    fn capture_slot_renders_with_cap_marker_in_name_column() {
+        use crate::capture::CaptureDevice;
+        let s = Slot {
+            source: SourceKind::Capture(CaptureDevice {
+                path: "/dev/video0".into(),
+                label: "v4l2:video0".into(),
+            }),
+            name: "v4l2:video0".into(),
+            start: -1.0, end: -1.0, length: 0.0, rate: 1.0,
+        };
+        let row = fmt_slot_row(0, &s);
+        assert!(row.contains("[cap]"), "got: {row}");
     }
 }
