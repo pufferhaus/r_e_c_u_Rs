@@ -1,6 +1,6 @@
 //! Phase 4b — capture recording state + helpers.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 /// Build target for encoder selection. Inferred at compile time by `Target::current()`.
@@ -44,9 +44,43 @@ pub struct ActiveRecording {
     pub last_disk_check: Instant,
 }
 
+/// Returns the first non-colliding path `<dir>/rec-YYYY-MM-DD-N.mp4`.
+/// `N` starts at 0 and increments until the candidate does not exist.
+/// Pure of side-effects except for `Path::exists()` checks.
+///
+/// `date_yyyymmdd` is injected so tests don't depend on system clock.
+pub fn generate_recording_path(dir: &Path, date_yyyymmdd: &str) -> PathBuf {
+    let mut n = 0u32;
+    loop {
+        let candidate = dir.join(format!("rec-{date_yyyymmdd}-{n}.mp4"));
+        if !candidate.exists() {
+            return candidate;
+        }
+        n += 1;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
+    use tempfile::TempDir;
+
+    #[test]
+    fn generate_recording_path_starts_at_zero() {
+        let td = TempDir::new().unwrap();
+        let p = generate_recording_path(td.path(), "2026-05-17");
+        assert_eq!(p.file_name().unwrap().to_str(), Some("rec-2026-05-17-0.mp4"));
+    }
+
+    #[test]
+    fn generate_recording_path_increments_on_collision() {
+        let td = TempDir::new().unwrap();
+        fs::write(td.path().join("rec-2026-05-17-0.mp4"), b"").unwrap();
+        fs::write(td.path().join("rec-2026-05-17-1.mp4"), b"").unwrap();
+        let p = generate_recording_path(td.path(), "2026-05-17");
+        assert_eq!(p.file_name().unwrap().to_str(), Some("rec-2026-05-17-2.mp4"));
+    }
 
     #[test]
     fn target_current_is_one_of_known() {
