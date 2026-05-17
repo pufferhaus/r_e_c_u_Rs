@@ -235,6 +235,10 @@ pub fn apply<R: RackHandle>(action: Action, state: &mut SharedState, rack: &mut 
                 state.last_error = Some("no capture devices found".to_string());
             }
         }
+        Action::RecordToggle => {
+            // Phase 4b — implemented in Task 9.
+            state.last_error = Some("recording not yet implemented".to_string());
+        }
         Action::ShaderParamAdjust(delta) => {
             if state.control_mode != ControlMode::ShaderParam {
                 return;

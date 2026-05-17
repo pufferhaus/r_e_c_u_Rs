@@ -65,6 +65,10 @@ pub enum Action {
 
     // Capture (Phase 4)
     AddCaptureSlot,
+    /// Phase 4b — toggles recording on the active capture pipeline.
+    /// When no capture source is active, sets `last_error`. When
+    /// a finalize is in progress, refuses with a "still saving" error.
+    RecordToggle,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -92,5 +96,17 @@ mod tests {
     #[test]
     fn panic_is_distinct_from_back() {
         assert_ne!(Action::Panic, Action::Back);
+    }
+
+    #[test]
+    fn record_toggle_action_exists() {
+        let a = Action::RecordToggle;
+        let b = Action::RecordToggle;
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn record_toggle_is_distinct_from_detour_toggle_play() {
+        assert_ne!(Action::RecordToggle, Action::DetourTogglePlay);
     }
 }
