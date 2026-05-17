@@ -133,6 +133,15 @@ impl TextGrid {
     pub fn cells(&self) -> &[Cell] {
         &self.cells
     }
+
+    /// Returns the rendered text of row `n` (trimming trailing spaces).
+    /// Returns an empty string for out-of-bounds rows.
+    pub fn row_text(&self, row: usize) -> String {
+        if row >= self.rows {
+            return String::new();
+        }
+        (0..self.cols).map(|c| self.cells[row * self.cols + c].ch).collect()
+    }
 }
 
 #[cfg(test)]

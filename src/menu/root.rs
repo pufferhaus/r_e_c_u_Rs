@@ -71,6 +71,21 @@ impl RootScreen {
         if state.gles_profile == GlesProfile::V100 {
             footer.push_str(" [profile: pi3]");
         }
+        // Phase 4b — recording indicator.
+        if let Some(rec) = state.active_recording.as_ref() {
+            use crate::capture::recording::RecState;
+            let suffix = match rec.state {
+                RecState::Recording => {
+                    let elapsed = rec.started_at.elapsed();
+                    let secs = elapsed.as_secs();
+                    format!(" <REC> {:02}:{:02}", secs / 60, secs % 60)
+                }
+                RecState::Finalizing => " <SAV>".to_string(),
+            };
+            // Right-trim the footer to make room.
+            let max_w = 40usize.saturating_sub(suffix.chars().count());
+            footer = footer.chars().take(max_w).collect::<String>() + &suffix;
+        }
         grid.write_row(15, &footer);
     }
 }
@@ -177,6 +192,44 @@ mod tests {
         // Row 7 (slot 2) should contain the shader name.
         let row7: String = (0..48).map(|c| grid.at(7, c).ch).collect();
         assert!(row7.contains("kaleidoscope"), "got: {row7}");
+    }
+
+    #[test]
+    fn footer_shows_rec_when_active_recording() {
+        use crate::capture::recording::{ActiveRecording, RecState};
+        use std::time::Instant;
+        let mut s = SharedState::new();
+        s.active_recording = Some(ActiveRecording {
+            device_path: "/dev/video0".into(),
+            file_path: "/tmp/rec.mp4".into(),
+            started_at: Instant::now(),
+            state: RecState::Recording,
+            last_disk_check: Instant::now(),
+        });
+        let r = RootScreen::new();
+        let mut grid = TextGrid::new(48, 17);
+        r.render_chrome(&s, &mut grid);
+        let footer = grid.row_text(15);
+        assert!(footer.contains("<REC>"), "footer: {footer:?}");
+    }
+
+    #[test]
+    fn footer_shows_sav_when_finalizing() {
+        use crate::capture::recording::{ActiveRecording, RecState};
+        use std::time::Instant;
+        let mut s = SharedState::new();
+        s.active_recording = Some(ActiveRecording {
+            device_path: "/dev/video0".into(),
+            file_path: "/tmp/rec.mp4".into(),
+            started_at: Instant::now(),
+            state: RecState::Finalizing,
+            last_disk_check: Instant::now(),
+        });
+        let r = RootScreen::new();
+        let mut grid = TextGrid::new(48, 17);
+        r.render_chrome(&s, &mut grid);
+        let footer = grid.row_text(15);
+        assert!(footer.contains("<SAV>"), "footer: {footer:?}");
     }
 
     #[test]
