@@ -200,13 +200,28 @@ impl Player {
     }
 
     pub fn unload(&mut self) {
+        // If a recording was active when unload was called (e.g. the rack
+        // swapped a clip onto this capture player), surface the in-progress
+        // file path to `finalized_records` BEFORE we tear down the bin. The
+        // main-loop drain block will then clear `state.active_recording` and
+        // `auto_import_recording` will create a slot pointing at the partial
+        // file. The mp4 likely lacks a moov atom and may be unplayable, but
+        // the path is preserved on disk and the `<REC>` indicator clears.
+        if self.recording_bin.is_some() {
+            if let Some(path) = self.recording_path.take() {
+                self.finalized_records.push(path);
+            }
+        }
         // Tear down any in-flight record bin before tearing down the parent
         // pipeline so we don't leak the bin's state or its sink file handle.
         if let Some(bin) = self.recording_bin.take() {
             let _ = bin.set_state(gst::State::Null);
         }
-        if let Some((bin, _tee_pad, _path)) = self.pending_finalize.take() {
+        if let Some((bin, _tee_pad, path)) = self.pending_finalize.take() {
             let _ = bin.set_state(gst::State::Null);
+            // A finalize was in flight — make sure the main loop sees the
+            // path so it clears `state.active_recording`.
+            self.finalized_records.push(path);
         }
         self.recording_tee_pad = None;
         self.recording_path = None;
@@ -270,36 +285,79 @@ impl Player {
         pipeline
             .add(&bin)
             .map_err(|e| crate::Error::Gst(format!("pipeline.add(bin): {e}")))?;
-        bin.sync_state_with_parent()
-            .map_err(|e| crate::Error::Gst(format!("sync_state_with_parent: {e}")))?;
 
-        // Detach the placeholder fakesink: unlink its sink pad from its tee
-        // peer, release the tee's request pad, and put the fakesink to NULL
-        // so it stops draining buffers but remains in the pipeline ready to
-        // be re-attached when recording stops.
-        if let Some(ph) = placeholder.as_ref() {
-            if let Some(sink_pad) = ph.static_pad("sink") {
-                if let Some(peer) = sink_pad.peer() {
-                    let _ = peer.unlink(&sink_pad);
-                    if let Some(tee_ref) = peer.parent_element() {
-                        tee_ref.release_request_pad(&peer);
+        // From here on, on any error we must remove the bin from the pipeline
+        // and re-attach the placeholder (if it was detached) before returning.
+        let mut placeholder_detached = false;
+        let setup = (|| -> Result<gst::Pad> {
+            // Detach the placeholder fakesink first: unlink its sink pad from
+            // its tee peer, release the tee's request pad, and put the
+            // fakesink to NULL so it stops draining buffers but remains in
+            // the pipeline ready to be re-attached when recording stops.
+            if let Some(ph) = placeholder.as_ref() {
+                if let Some(sink_pad) = ph.static_pad("sink") {
+                    if let Some(peer) = sink_pad.peer() {
+                        let _ = peer.unlink(&sink_pad);
+                        if let Some(tee_ref) = peer.parent_element() {
+                            tee_ref.release_request_pad(&peer);
+                        }
+                        placeholder_detached = true;
                     }
                 }
+                let _ = ph.set_state(gst::State::Null);
             }
-            let _ = ph.set_state(gst::State::Null);
-        }
 
-        // Request a fresh src pad on the tee and link to the record bin's
-        // sink ghost.
-        let tee_src = tee
-            .request_pad_simple("src_%u")
-            .ok_or_else(|| crate::Error::Gst("tee.request_pad failed".into()))?;
-        let bin_sink = bin
-            .static_pad("sink")
-            .ok_or_else(|| crate::Error::Gst("record bin has no sink ghost".into()))?;
-        tee_src
-            .link(&bin_sink)
-            .map_err(|e| crate::Error::Gst(format!("tee->bin link: {e:?}")))?;
+            // Request a fresh src pad on the tee and link it to the record
+            // bin's sink ghost. Link BEFORE syncing the bin's state so the
+            // record bin has upstream data the moment it preroll-transitions
+            // to PLAYING — avoiding a stall on an unlinked sink.
+            let tee_src = tee
+                .request_pad_simple("src_%u")
+                .ok_or_else(|| crate::Error::Gst("tee.request_pad failed".into()))?;
+            let bin_sink = bin
+                .static_pad("sink")
+                .ok_or_else(|| {
+                    // Release the just-acquired tee pad before bubbling up.
+                    tee.release_request_pad(&tee_src);
+                    crate::Error::Gst("record bin has no sink ghost".into())
+                })?;
+            if let Err(e) = tee_src.link(&bin_sink) {
+                tee.release_request_pad(&tee_src);
+                return Err(crate::Error::Gst(format!("tee->bin link: {e:?}")));
+            }
+
+            // Now sync the bin to the pipeline's state — it has upstream
+            // buffers available, so preroll will progress.
+            if let Err(e) = bin.sync_state_with_parent() {
+                tee_src.unlink(&bin_sink).ok();
+                tee.release_request_pad(&tee_src);
+                return Err(crate::Error::Gst(format!("sync_state_with_parent: {e}")));
+            }
+            Ok(tee_src)
+        })();
+
+        let tee_src = match setup {
+            Ok(p) => p,
+            Err(e) => {
+                // Tear down the orphaned bin and re-attach the placeholder.
+                let _ = bin.set_state(gst::State::Null);
+                let _ = pipeline.remove(&bin);
+                if placeholder_detached {
+                    if let Some(ph) = placeholder.as_ref() {
+                        if ph.static_pad("sink").and_then(|s| s.peer()).is_none() {
+                            if let (Some(ts), Some(ps)) =
+                                (tee.request_pad_simple("src_%u"), ph.static_pad("sink"))
+                            {
+                                if ts.link(&ps).is_ok() {
+                                    let _ = ph.sync_state_with_parent();
+                                }
+                            }
+                        }
+                    }
+                }
+                return Err(e);
+            }
+        };
 
         self.recording_tee_pad = Some(tee_src);
         self.recording_bin = Some(bin);

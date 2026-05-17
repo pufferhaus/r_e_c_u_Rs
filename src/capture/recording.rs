@@ -107,7 +107,7 @@ pub fn build_record_bin_desc(target: Target, file_path: &Path) -> String {
     let location = file_path.display();
     format!(
         "queue ! {encoder} ! {parser} ! \
-         splitmuxsink muxer-factory=mp4mux max-size-time=0 location={location}"
+         splitmuxsink muxer-factory=mp4mux max-size-time=0 location=\"{location}\""
     )
 }
 
@@ -192,7 +192,7 @@ mod tests {
         assert!(d.contains("splitmuxsink"));
         assert!(d.contains("muxer-factory=mp4mux"));
         assert!(d.contains("max-size-time=0"));
-        assert!(d.contains("/tmp/r.mp4"));
+        assert!(d.contains("location=\"/tmp/r.mp4\""), "missing quoted location: {d}");
     }
 
     #[test]
