@@ -60,6 +60,43 @@ pub fn generate_recording_path(dir: &Path, date_yyyymmdd: &str) -> PathBuf {
     }
 }
 
+/// Returns true if `dir` (or its nearest existing ancestor) has at least
+/// `min_mb` megabytes of free space. On platforms or filesystems where
+/// `statvfs` fails, returns `true` (fail-open) to avoid blocking
+/// recording on unreliable stats.
+pub fn check_disk_space(dir: &Path, min_mb: u64) -> bool {
+    // Walk up to the nearest existing dir for the stat call.
+    let mut probe = dir.to_path_buf();
+    while !probe.exists() {
+        match probe.parent() {
+            Some(p) => probe = p.to_path_buf(),
+            None => return true, // can't resolve any ancestor — fail-open
+        }
+    }
+    match free_mb(&probe) {
+        Some(mb) => mb >= min_mb,
+        None => true, // statvfs failed — fail-open
+    }
+}
+
+#[cfg(unix)]
+fn free_mb(dir: &Path) -> Option<u64> {
+    use std::ffi::CString;
+    use std::os::unix::ffi::OsStrExt;
+    let c = CString::new(dir.as_os_str().as_bytes()).ok()?;
+    let mut stat: libc::statvfs = unsafe { std::mem::zeroed() };
+    let rc = unsafe { libc::statvfs(c.as_ptr(), &mut stat) };
+    if rc != 0 { return None; }
+    let bsize = stat.f_frsize as u64;
+    let avail = stat.f_bavail as u64;
+    Some((bsize.saturating_mul(avail)) / (1024 * 1024))
+}
+
+#[cfg(not(unix))]
+fn free_mb(_dir: &Path) -> Option<u64> {
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -108,5 +145,19 @@ mod tests {
         };
         assert_eq!(r.device_path, "/dev/video0");
         assert_eq!(r.state, RecState::Recording);
+    }
+
+    #[test]
+    fn check_disk_space_passes_for_zero_threshold_on_tempdir() {
+        let td = TempDir::new().unwrap();
+        assert!(check_disk_space(td.path(), 0));
+    }
+
+    #[test]
+    fn check_disk_space_fail_opens_when_path_does_not_exist() {
+        // Walks up to root, which exists — but we expect the function to
+        // resolve and return true (free or fail-open).
+        let p = std::path::Path::new("/nonexistent-r_e_c_u_r-test-dir-zzz");
+        assert!(check_disk_space(p, 0));
     }
 }

@@ -42,14 +42,14 @@ gbm = { version = "0.15", default-features = false, features = ["drm-support"], 
 drm = { version = "0.12", optional = true }
 evdev = { version = "0.13", optional = true }
 memmap2 = { version = "0.9", optional = true }
-libc = { version = "0.2", optional = true }
+libc = "0.2"
 
 [features]
 default = ["desktop"]
 desktop = ["dep:winit", "dep:glutin", "dep:glutin-winit", "dep:raw-window-handle", "dep:softbuffer"]
 
 # Shared Pi userland (DRM/KMS, EGL, evdev). Always pulled in by pi3 or pi5.
-pi-base = ["dep:khronos-egl", "dep:gbm", "dep:drm", "dep:evdev", "dep:memmap2", "dep:libc"]
+pi-base = ["dep:khronos-egl", "dep:gbm", "dep:drm", "dep:evdev", "dep:memmap2"]
 
 # Baseline Pi target: VideoCore IV, GLES 2.0 / GLSL ES 1.00 (Pi 3 B+).
 pi3 = ["pi-base"]
