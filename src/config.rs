@@ -31,6 +31,8 @@ pub fn user_state_dir() -> PathBuf {
 #[derive(Debug, Clone, Deserialize)]
 pub struct Config {
     pub render: RenderConfig,
+    #[serde(default)]
+    pub detour: Option<DetourConfig>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -38,6 +40,12 @@ pub struct RenderConfig {
     pub width: u32,
     pub height: u32,
     pub fps: u32,
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct DetourConfig {
+    #[serde(default)]
+    pub ring_budget_mb: Option<u64>,
 }
 
 impl Config {
@@ -65,6 +73,32 @@ mod tests {
         let cfg: Config = toml::from_str(s).unwrap();
         assert_eq!(cfg.render.width, 720);
         assert_eq!(cfg.render.fps, 30);
+    }
+
+    #[test]
+    fn parses_config_with_detour_section() {
+        let s = r#"
+            [render]
+            width = 720
+            height = 480
+            fps = 30
+            [detour]
+            ring_budget_mb = 256
+        "#;
+        let cfg: Config = toml::from_str(s).unwrap();
+        assert_eq!(cfg.detour.as_ref().and_then(|d| d.ring_budget_mb), Some(256));
+    }
+
+    #[test]
+    fn parses_config_without_detour_section() {
+        let s = r#"
+            [render]
+            width = 720
+            height = 480
+            fps = 30
+        "#;
+        let cfg: Config = toml::from_str(s).unwrap();
+        assert!(cfg.detour.is_none() || cfg.detour.as_ref().and_then(|d| d.ring_budget_mb).is_none());
     }
 
     #[test]

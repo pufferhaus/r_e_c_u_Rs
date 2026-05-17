@@ -4,3 +4,6 @@
 width = 720
 height = 480
 fps = 30
+
+# [detour]
+# ring_budget_mb = 256
