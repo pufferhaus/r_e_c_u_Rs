@@ -106,6 +106,19 @@ pub fn short_codec_name(caps_name: &str) -> String {
     }
 }
 
+/// Apply the per-profile unsupported list to a worker-emitted status.
+/// Idempotent for `Pending` / `Unknown` / already-Unsupported.
+pub fn reclassify_for_profile(status: CodecStatus, profile: GlesProfile) -> CodecStatus {
+    let CodecStatus::Supported(name) = &status else {
+        return status;
+    };
+    if unsupported_for_profile(profile).contains(&name.as_str()) {
+        CodecStatus::Unsupported(name.clone())
+    } else {
+        status
+    }
+}
+
 /// Handle to a background probe thread. Drop the request-channel `Sender`
 /// to signal shutdown; then call `join()`.
 pub struct ProbeWorker {
@@ -243,5 +256,46 @@ mod tests {
         let worker = ProbeWorker::spawn(rx, res_tx);
         drop(tx); // close request channel → worker exits
         worker.join().expect("worker thread must join cleanly");
+    }
+
+    #[test]
+    fn reclassify_marks_hevc_unsupported_on_v100() {
+        use crate::render::shader_assembly::GlesProfile;
+        let s = CodecStatus::Supported("hevc".into());
+        let out = reclassify_for_profile(s, GlesProfile::V100);
+        assert_eq!(out, CodecStatus::Unsupported("hevc".into()));
+    }
+
+    #[test]
+    fn reclassify_passes_h264_through_on_v100() {
+        use crate::render::shader_assembly::GlesProfile;
+        let s = CodecStatus::Supported("h264".into());
+        let out = reclassify_for_profile(s, GlesProfile::V100);
+        assert_eq!(out, CodecStatus::Supported("h264".into()));
+    }
+
+    #[test]
+    fn reclassify_passes_everything_on_v310() {
+        use crate::render::shader_assembly::GlesProfile;
+        for codec in ["h264", "hevc", "vp9", "av1"] {
+            let s = CodecStatus::Supported(codec.into());
+            assert_eq!(
+                reclassify_for_profile(s, GlesProfile::V310),
+                CodecStatus::Supported(codec.into())
+            );
+        }
+    }
+
+    #[test]
+    fn reclassify_leaves_unknown_alone() {
+        use crate::render::shader_assembly::GlesProfile;
+        assert_eq!(
+            reclassify_for_profile(CodecStatus::Unknown, GlesProfile::V100),
+            CodecStatus::Unknown
+        );
+        assert_eq!(
+            reclassify_for_profile(CodecStatus::Pending, GlesProfile::V100),
+            CodecStatus::Pending
+        );
     }
 }
