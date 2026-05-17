@@ -24,7 +24,7 @@ The legacy `pi` feature is retained as a deprecated alias for `pi3` for one rele
 | VP9 | ✗ | ✓ | ✓ |
 | AV1 | ✗ | ✓ (software) | ✓ |
 
-Unsupported sources are visible in the Browser with an `[X]` marker but cannot be mapped into a slot. Re-encode with `ffmpeg -c:v libx264 -crf 20 -preset slow in.mkv out.mp4` if needed for `pi3`.
+Unsupported sources appear in the Browser dimmed with an `[X]` marker; map-to-slot is refused with `cannot map: pi3 build does not support hevc` in the status line. Re-encode with `ffmpeg -c:v libx264 -crf 20 -preset slow in.mkv out.mp4` if you need an HEVC file to run on `pi3`.
 
 ## Development
 

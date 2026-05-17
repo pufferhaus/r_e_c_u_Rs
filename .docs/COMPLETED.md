@@ -2,6 +2,10 @@
 
 Rolled-off entries from `Recently Shipped` in [ROADMAP.md](ROADMAP.md). Newest first.
 
+## 2026-05-16
+
+- **Dual-target spec**: pi3 + pi5 cargo features, per-shader GLES gating rules, byte-budgeted detour ring rules, desktop dev defaults to pi5 parity. Foundation only — phase-2/3 implementation pending. See `docs/superpowers/specs/2026-05-16-pi5-target-revision-design.md`.
+
 ## 2026-05-12
 
 - **Render backend**: real desktop GL render via winit + glutin + glow; video frames now display in a window. Pi cross-build via `cross build --no-default-features --features pi` verified compiling to `aarch64-unknown-linux-gnu` (real-Pi runtime testing pending hardware access).
