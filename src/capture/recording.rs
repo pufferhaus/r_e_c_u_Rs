@@ -97,6 +97,29 @@ fn free_mb(_dir: &Path) -> Option<u64> {
     None
 }
 
+/// Builds the gst-parse-launch string for the record-branch bin. This is the
+/// content of the second tee output: `queue ! <encoder> ! <parser> ! splitmuxsink`.
+///
+/// The caller wraps this in a `Bin` and links it to the live capture pipeline's
+/// `cap_t` tee request pad.
+pub fn build_record_bin_desc(target: Target, file_path: &Path) -> String {
+    let (encoder, parser) = encoder_chain(target);
+    let location = file_path.display();
+    format!(
+        "queue ! {encoder} ! {parser} ! \
+         splitmuxsink muxer-factory=mp4mux max-size-time=0 location={location}"
+    )
+}
+
+fn encoder_chain(target: Target) -> (&'static str, &'static str) {
+    match target {
+        Target::Pi3          => ("v4l2h264enc", "h264parse"),
+        Target::Pi5          => ("v4l2h265enc", "h265parse"),
+        Target::MacDesktop   => ("vtenc_h264",  "h264parse"),
+        Target::LinuxDesktop => ("x264enc",     "h264parse"),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -159,5 +182,37 @@ mod tests {
         // resolve and return true (free or fail-open).
         let p = std::path::Path::new("/nonexistent-r_e_c_u_r-test-dir-zzz");
         assert!(check_disk_space(p, 0));
+    }
+
+    #[test]
+    fn record_bin_desc_pi3_uses_v4l2h264enc() {
+        let d = build_record_bin_desc(Target::Pi3, Path::new("/tmp/r.mp4"));
+        assert!(d.contains("v4l2h264enc"));
+        assert!(d.contains("h264parse"));
+        assert!(d.contains("splitmuxsink"));
+        assert!(d.contains("muxer-factory=mp4mux"));
+        assert!(d.contains("max-size-time=0"));
+        assert!(d.contains("/tmp/r.mp4"));
+    }
+
+    #[test]
+    fn record_bin_desc_pi5_uses_v4l2h265enc() {
+        let d = build_record_bin_desc(Target::Pi5, Path::new("/tmp/r.mp4"));
+        assert!(d.contains("v4l2h265enc"));
+        assert!(d.contains("h265parse"));
+    }
+
+    #[test]
+    fn record_bin_desc_mac_uses_vtenc_h264() {
+        let d = build_record_bin_desc(Target::MacDesktop, Path::new("/tmp/r.mp4"));
+        assert!(d.contains("vtenc_h264"));
+        assert!(d.contains("h264parse"));
+    }
+
+    #[test]
+    fn record_bin_desc_linux_desktop_uses_x264enc() {
+        let d = build_record_bin_desc(Target::LinuxDesktop, Path::new("/tmp/r.mp4"));
+        assert!(d.contains("x264enc"));
+        assert!(d.contains("h264parse"));
     }
 }
