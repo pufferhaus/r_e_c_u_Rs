@@ -256,8 +256,81 @@ pub fn apply<R: RackHandle>(action: Action, state: &mut SharedState, rack: &mut 
             }
         }
         Action::RecordToggle => {
-            // Phase 4b — implemented in Task 9.
-            state.last_error = Some("recording not yet implemented".to_string());
+            use crate::capture::recording::{
+                ActiveRecording, RecState, Target,
+                check_disk_space, generate_recording_path,
+            };
+            use std::time::Instant;
+
+            // Determine recording directory.
+            let dir = state
+                .paths_to_browser
+                .first()
+                .cloned()
+                .unwrap_or_else(|| std::env::temp_dir().join("recur-recordings"))
+                .join("recordings");
+
+            // Branch on current recording state.
+            match state.active_recording.as_ref().map(|r| r.state) {
+                Some(RecState::Finalizing) => {
+                    state.last_error = Some("still saving previous recording".to_string());
+                }
+                Some(RecState::Recording) => {
+                    rack.stop_recording();
+                    if let Some(rec) = state.active_recording.as_mut() {
+                        rec.state = RecState::Finalizing;
+                    }
+                }
+                None => {
+                    // Discover the active capture device by checking the rack's
+                    // current binding against the bank's slot table.
+                    let device_path: Option<String> = rack.current_binding().and_then(|(b, s)| {
+                        state.banks
+                            .get(b as usize)?
+                            .slots
+                            .get(s as usize)?
+                            .as_ref()
+                            .and_then(|slot| match &slot.source {
+                                crate::state::SourceKind::Capture(d) => Some(d.path.clone()),
+                                _ => None,
+                            })
+                    });
+                    let Some(device_path) = device_path else {
+                        state.last_error = Some("no active capture source".to_string());
+                        return;
+                    };
+
+                    // Disk-space gate.
+                    if !check_disk_space(&dir, 10) {
+                        state.last_error = Some("insufficient space on disk".to_string());
+                        return;
+                    }
+                    if let Err(e) = std::fs::create_dir_all(&dir) {
+                        state.last_error = Some(format!("recording: {e}"));
+                        return;
+                    }
+
+                    // Filename.
+                    let date = today_yyyymmdd();
+                    let file_path = generate_recording_path(&dir, &date);
+                    let target = Target::current();
+                    match rack.start_recording(&device_path, &file_path, target) {
+                        Ok(()) => {
+                            let now = Instant::now();
+                            state.active_recording = Some(ActiveRecording {
+                                device_path,
+                                file_path,
+                                started_at: now,
+                                state: RecState::Recording,
+                                last_disk_check: now,
+                            });
+                        }
+                        Err(e) => {
+                            state.last_error = Some(format!("recording: {e}"));
+                        }
+                    }
+                }
+            }
         }
         Action::ShaderParamAdjust(delta) => {
             if state.control_mode != ControlMode::ShaderParam {
@@ -333,6 +406,27 @@ fn cycle_setting(state: &mut SharedState, id: SettingId) {
         }
         SettingId::ResetPlayers => s.reset_players = !s.reset_players,
     }
+}
+
+fn today_yyyymmdd() -> String {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let secs = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let days = secs / 86400;
+    // Civil-date conversion from Unix epoch (Howard Hinnant algo, simplified).
+    let z = days as i64 + 719468;
+    let era = if z >= 0 { z } else { z - 146096 } / 146097;
+    let doe = (z - era * 146097) as u64;
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    let y = yoe as i64 + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    let y = if m <= 2 { y + 1 } else { y };
+    format!("{:04}-{:02}-{:02}", y, m, d)
 }
 
 #[cfg(test)]
@@ -746,6 +840,78 @@ mod tests {
         assert!(s.detour.end_marker.is_none());
     }
 
+    fn capture_slot(path: &str) -> Slot {
+        Slot {
+            source: crate::state::SourceKind::Capture(crate::capture::CaptureDevice {
+                path: path.into(),
+                label: format!("test:{path}"),
+            }),
+            name: format!("test:{path}"),
+            start: -1.0, end: -1.0, length: 0.0, rate: 1.0,
+        }
+    }
+
+    #[test]
+    fn record_toggle_with_no_active_capture_sets_last_error() {
+        let mut s = SharedState::new();
+        s.paths_to_browser = vec![std::env::temp_dir()];
+        let mut r = SpyRack::default();
+        apply(Action::RecordToggle, &mut s, &mut r);
+        let err = s.last_error.as_deref().unwrap_or("");
+        assert!(err.contains("no active capture source"), "got: {err:?}");
+        assert!(s.active_recording.is_none());
+        assert_eq!(r.record_starts, 0);
+    }
+
+    #[test]
+    fn record_toggle_with_active_capture_starts_recording() {
+        let mut s = SharedState::new();
+        let tmp = tempfile::TempDir::new().unwrap();
+        s.paths_to_browser = vec![tmp.path().to_path_buf()];
+        s.banks[0].slots[0] = Some(capture_slot("/dev/video0"));
+        let mut r = SpyRack::default();
+        // Trigger slot 0 first so the rack knows it's the active source.
+        apply(Action::SelectSlot(0), &mut s, &mut r);
+        apply(Action::RecordToggle, &mut s, &mut r);
+        assert!(s.active_recording.is_some(), "last_error: {:?}", s.last_error);
+        let rec = s.active_recording.as_ref().unwrap();
+        assert_eq!(rec.device_path, "/dev/video0");
+        assert!(rec.file_path.starts_with(tmp.path().join("recordings")),
+            "file_path: {:?}", rec.file_path);
+        assert_eq!(r.record_starts, 1);
+    }
+
+    #[test]
+    fn second_record_toggle_while_recording_stops_it() {
+        let mut s = SharedState::new();
+        let tmp = tempfile::TempDir::new().unwrap();
+        s.paths_to_browser = vec![tmp.path().to_path_buf()];
+        s.banks[0].slots[0] = Some(capture_slot("/dev/video0"));
+        let mut r = SpyRack::default();
+        apply(Action::SelectSlot(0), &mut s, &mut r);
+        apply(Action::RecordToggle, &mut s, &mut r);
+        apply(Action::RecordToggle, &mut s, &mut r);
+        let rec = s.active_recording.as_ref().expect("still tracking until finalize");
+        assert_eq!(rec.state, crate::capture::recording::RecState::Finalizing);
+        assert_eq!(r.record_stops, 1);
+    }
+
+    #[test]
+    fn record_toggle_during_finalize_sets_still_saving_error() {
+        let mut s = SharedState::new();
+        let tmp = tempfile::TempDir::new().unwrap();
+        s.paths_to_browser = vec![tmp.path().to_path_buf()];
+        s.banks[0].slots[0] = Some(capture_slot("/dev/video0"));
+        let mut r = SpyRack::default();
+        apply(Action::SelectSlot(0), &mut s, &mut r);
+        apply(Action::RecordToggle, &mut s, &mut r);
+        apply(Action::RecordToggle, &mut s, &mut r); // -> Finalizing
+        apply(Action::RecordToggle, &mut s, &mut r); // -> refused
+        let err = s.last_error.as_deref().unwrap_or("");
+        assert!(err.contains("still saving"), "got: {err:?}");
+        assert_eq!(r.record_stops, 1, "should not call stop twice");
+    }
+
     #[test]
     fn add_capture_slot_populates_first_empty_when_devices_present() {
         let mut s = SharedState::new();
@@ -781,5 +947,13 @@ mod tests {
         assert_eq!(r.record_stops, 1);
         let finalized: Vec<std::path::PathBuf> = r.drain_finalized();
         assert!(finalized.is_empty());
+    }
+
+    #[test]
+    fn today_yyyymmdd_has_correct_shape() {
+        let s = super::today_yyyymmdd();
+        assert_eq!(s.len(), 10, "got: {s}");
+        assert_eq!(&s[4..5], "-");
+        assert_eq!(&s[7..8], "-");
     }
 }
