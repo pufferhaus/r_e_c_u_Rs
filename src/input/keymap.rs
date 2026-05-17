@@ -157,6 +157,7 @@ fn parse_action(s: &str) -> std::result::Result<Action, ()> {
         "DetourSetEndMarker" => Action::DetourSetEndMarker,
         "DetourClearMarkers" => Action::DetourClearMarkers,
         "DetourCycleMix" => Action::DetourCycleMix,
+        "AddCaptureSlot" => Action::AddCaptureSlot,
         _ => return Err(()),
     };
     Ok(action)
@@ -276,6 +277,13 @@ mod tests {
         assert_eq!(km.lookup("BracketRight"), Some(Action::DetourSetEndMarker));
         assert_eq!(km.lookup("Backslash"), Some(Action::DetourClearMarkers));
         assert_eq!(km.lookup("KeyM"), Some(Action::DetourCycleMix));
+    }
+
+    #[test]
+    fn parses_add_capture_slot() {
+        let s = "[bindings]\n\"KeyC\" = \"AddCaptureSlot\"\n";
+        let km = Keymap::parse(s).unwrap();
+        assert_eq!(km.lookup("KeyC"), Some(Action::AddCaptureSlot));
     }
 
     #[test]

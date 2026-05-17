@@ -217,6 +217,24 @@ pub fn apply<R: RackHandle>(action: Action, state: &mut SharedState, rack: &mut 
                 state.detour.cycle_mix();
             }
         }
+        Action::AddCaptureSlot => {
+            let devs = crate::capture::enumerate_capture_devices();
+            if let Some(d) = devs.into_iter().next() {
+                if let Some(idx) = state.current_bank().first_empty() {
+                    let label = d.label.clone();
+                    state.current_bank_mut().slots[idx] = Some(crate::state::Slot {
+                        source: crate::state::SourceKind::Capture(d),
+                        name: label,
+                        start: -1.0,
+                        end: -1.0,
+                        length: 0.0,
+                        rate: 1.0,
+                    });
+                }
+            } else {
+                state.last_error = Some("no capture devices found".to_string());
+            }
+        }
         Action::ShaderParamAdjust(delta) => {
             if state.control_mode != ControlMode::ShaderParam {
                 return;
@@ -684,5 +702,28 @@ mod tests {
         apply(Action::DetourClearMarkers, &mut s, &mut r);
         assert!(s.detour.start_marker.is_none());
         assert!(s.detour.end_marker.is_none());
+    }
+
+    #[test]
+    fn add_capture_slot_populates_first_empty_when_devices_present() {
+        let mut s = SharedState::new();
+        let mut r = SpyRack::default();
+        apply(Action::AddCaptureSlot, &mut s, &mut r);
+
+        let devs = crate::capture::enumerate_capture_devices();
+        if devs.is_empty() {
+            // Linux CI with no /dev/video*: expect last_error set; no slot populated.
+            assert!(s.banks[0].slots[0].is_none());
+            assert!(s.last_error.as_deref().unwrap_or("").contains("no capture"));
+        } else {
+            // macOS / Linux with cameras: slot 0 populated with a Capture kind.
+            let slot = s.banks[0].slots[0].as_ref().expect("slot 0 should populate");
+            match &slot.source {
+                crate::state::SourceKind::Capture(d) => {
+                    assert_eq!(d.path, devs[0].path);
+                }
+                _ => panic!("expected Capture source"),
+            }
+        }
     }
 }

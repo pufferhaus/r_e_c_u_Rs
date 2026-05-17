@@ -62,6 +62,9 @@ pub enum Action {
     DetourSetEndMarker,
     DetourClearMarkers,
     DetourCycleMix,
+
+    // Capture (Phase 4)
+    AddCaptureSlot,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
