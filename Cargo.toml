@@ -66,6 +66,10 @@ pi = ["pi3"]
 pretty_assertions = "1"
 tempfile = "3"
 
+[lib]
+name = "recur"
+path = "src/lib.rs"
+
 [[bin]]
 name = "r_e_c_u_rs"
 path = "src/main.rs"
