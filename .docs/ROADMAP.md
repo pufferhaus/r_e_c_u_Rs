@@ -1,6 +1,6 @@
-# r_e_c_u_r (Rust port) — Roadmap
+# r_e_c_u_Rs — Roadmap
 
-Rust re-imagining of [langolierz/r_e_c_u_r](https://github.com/langolierz/r_e_c_u_r). Targets Pi 3 B+ / Pi 4 / Pi 5, with macOS + Linux x86_64 dev. Same render backend + LCD pathway as `/Users/cody/Dev/mandleROT`.
+Rust reimplementation of [cyberboy666/r_e_c_u_r](https://github.com/cyberboy666/r_e_c_u_r). Targets Pi 3 B+ / Pi 4 / Pi 5, with macOS + Linux x86_64 dev. Same render backend + LCD pathway as `/Users/cody/Dev/mandleROT`.
 
 The original Python source is preserved at `.old/` (gitignored).
 
@@ -40,7 +40,7 @@ Active phase = lowest-numbered row with ☐.
 
 ## Backlog
 
-- `recur import-old-banks <dir>` — migrate from original Python `json_objects/`.
+- `r_e_c_u_rs import-old-banks <dir>` — migrate from original Python `json_objects/`.
 - Bench composite output to native composite TRRS jack on Pi 3 B+ vs Pi 5.
 - Auto-discover `paths_to_browser` from common mount points (`/media/*`, USB).
 - MIDI clock sync for `LoopType::Parallel` (line up loop restarts to bar).

@@ -1,6 +1,8 @@
-# r_e_c_u_r
+# r_e_c_u_Rs
 
-Rust port of [langolierz/r_e_c_u_r](https://github.com/langolierz/r_e_c_u_r) — a video sampler for Raspberry Pi. Targets Pi 3 B+ and Pi 5 as separate compile-time builds; macOS and Linux x86_64 are supported for development.
+Rust port of [cyberboy666/r_e_c_u_r](https://github.com/cyberboy666/r_e_c_u_r) — a video sampler for Raspberry Pi. Targets Pi 3 B+ and Pi 5 as separate compile-time builds; macOS and Linux x86_64 are supported for development.
+
+_Forked from [cyberboy666/r_e_c_u_r](https://github.com/cyberboy666/r_e_c_u_r); now an independent Rust reimplementation._
 
 **257 unit tests pass.** Hardware verification of Phase 4 (captur) requires a Pi + USB camera; all other phases verified on desktop.
 
@@ -17,10 +19,10 @@ Rust port of [langolierz/r_e_c_u_r](https://github.com/langolierz/r_e_c_u_r) —
 
 | Hardware | Binary | Cargo invocation |
 |---|---|---|
-| Raspberry Pi 3 B+ | `recur-aarch64-pi3` | `cross build --release --no-default-features --features pi3 --target aarch64-unknown-linux-gnu` |
-| Raspberry Pi 4 | `recur-aarch64-pi3` (works; not first-class) | same as Pi 3 B+ |
-| Raspberry Pi 5 | `recur-aarch64-pi5` | `cross build --release --no-default-features --features pi5 --target aarch64-unknown-linux-gnu` |
-| macOS / Linux x86_64 | `recur` | `cargo build --release` |
+| Raspberry Pi 3 B+ | `r_e_c_u_rs-aarch64-pi3` | `cross build --release --no-default-features --features pi3 --target aarch64-unknown-linux-gnu` |
+| Raspberry Pi 4 | `r_e_c_u_rs-aarch64-pi3` (works; not first-class) | same as Pi 3 B+ |
+| Raspberry Pi 5 | `r_e_c_u_rs-aarch64-pi5` | `cross build --release --no-default-features --features pi5 --target aarch64-unknown-linux-gnu` |
+| macOS / Linux x86_64 | `r_e_c_u_rs` | `cargo build --release` |
 
 `pi3` and `pi5` are mutually exclusive at compile time; `build.rs` fails fast if neither or both are set.
 The legacy `pi` feature is a deprecated alias for `pi3` (removed in 0.2.0).

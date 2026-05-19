@@ -1,9 +1,9 @@
 [package]
-name = "recur"
+name = "r_e_c_u_rs"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.85"
-description = "Rust port of r_e_c_u_r — video sampler for Raspberry Pi"
+description = "Rust reimplementation of cyberboy666/r_e_c_u_r — video sampler for Raspberry Pi"
 license = "MIT OR Apache-2.0"
 
 [dependencies]
@@ -67,7 +67,7 @@ pretty_assertions = "1"
 tempfile = "3"
 
 [[bin]]
-name = "recur"
+name = "r_e_c_u_rs"
 path = "src/main.rs"
 
 [profile.release]

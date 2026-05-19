@@ -1,4 +1,4 @@
-# r_e_c_u_r — Completed Work
+# r_e_c_u_Rs — Completed Work
 
 Rolled-off entries from `Recently Shipped` in [ROADMAP.md](ROADMAP.md). Newest first.
 

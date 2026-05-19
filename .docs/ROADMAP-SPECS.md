@@ -1,4 +1,4 @@
-# r_e_c_u_r (Rust port) — phase specs
+# r_e_c_u_Rs — phase specs
 
 Full specs per phase from the Execution Order table in `ROADMAP.md`. Each is a one-paragraph summary; the detailed design lives in `docs/superpowers/specs/`.
 
