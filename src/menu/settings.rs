@@ -18,6 +18,7 @@ const ITEMS: &[(SettingId, &str)] = &[
     (SettingId::SeekTime, "seek_time"),
     (SettingId::ActionGated, "action_gated"),
     (SettingId::FuncGated, "func_gated"),
+    (SettingId::StrobeAmount, "strobe_amount"),
 ];
 
 pub struct SettingsBody {
@@ -98,6 +99,7 @@ fn value_for(state: &SharedState, id: SettingId) -> String {
         SettingId::SeekTime => format!("{}s", s.seek_time),
         SettingId::ActionGated => s.action_gated.to_string(),
         SettingId::FuncGated => s.func_gated.to_string(),
+        SettingId::StrobeAmount => s.strobe_amount.to_string(),
     }
 }
 

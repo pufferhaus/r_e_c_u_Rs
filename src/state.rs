@@ -204,6 +204,9 @@ pub struct SamplerSettings {
     /// Shift acts as gate (down=enter FN, up=exit) instead of toggle.
     #[serde(default)]
     pub func_gated: bool,
+    /// Strobe: 0 = off; 1-10 = blank every (n+1) frames, show 1.
+    #[serde(default)]
+    pub strobe_amount: u8,
 }
 
 fn default_one() -> f32 {
@@ -230,6 +233,7 @@ impl Default for SamplerSettings {
             seek_time: 5.0,
             action_gated: false,
             func_gated: false,
+            strobe_amount: 0,
         }
     }
 }

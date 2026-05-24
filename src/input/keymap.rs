@@ -173,6 +173,7 @@ fn parse_action(s: &str) -> std::result::Result<Action, ()> {
             "SeekTime" => SettingId::SeekTime,
             "ActionGated" => SettingId::ActionGated,
             "FuncGated" => SettingId::FuncGated,
+            "StrobeAmount" => SettingId::StrobeAmount,
             _ => return Err(()),
         };
         return Ok(Action::CycleSetting(id));

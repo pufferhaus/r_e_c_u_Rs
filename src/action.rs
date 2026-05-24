@@ -95,6 +95,7 @@ pub enum SettingId {
     SeekTime,
     ActionGated,
     FuncGated,
+    StrobeAmount,
 }
 
 #[cfg(test)]

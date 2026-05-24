@@ -427,8 +427,14 @@ fn main() -> anyhow::Result<()> {
         state.frames_stats_fps = cfg.render.fps;
 
         render.begin_frame();
-        if let Some(frame) = latest_rgba.as_ref() {
-            render.draw_video_layer(frame.data(), frame.width, frame.height, 1.0);
+        let strobe_show = {
+            let sa = state.sampler.strobe_amount as u64;
+            sa == 0 || frame_count % (sa + 1) == 0
+        };
+        if strobe_show {
+            if let Some(frame) = latest_rgba.as_ref() {
+                render.draw_video_layer(frame.data(), frame.width, frame.height, 1.0);
+            }
         }
 
         // Scrub overlay: blend ring frame on top.

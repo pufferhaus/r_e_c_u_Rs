@@ -433,6 +433,7 @@ fn cycle_setting(state: &mut SharedState, id: SettingId) {
         SettingId::ResetPlayers => s.reset_players = !s.reset_players,
         SettingId::ActionGated => s.action_gated = !s.action_gated,
         SettingId::FuncGated => s.func_gated = !s.func_gated,
+        SettingId::StrobeAmount => s.strobe_amount = (s.strobe_amount + 1) % 11,
         SettingId::SeekTime => {
             const STEPS: &[f64] = &[0.5, 1.0, 5.0, 10.0, 15.0, 30.0, 60.0, 120.0];
             let next = STEPS
