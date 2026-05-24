@@ -195,10 +195,17 @@ pub struct SamplerSettings {
     pub fixed_length_multiply: f32,
     #[serde(default)]
     pub reset_players: bool,
+    /// Seek increment in seconds; cycled through the SEEK_STEPS table.
+    #[serde(default = "default_seek_time")]
+    pub seek_time: f64,
 }
 
 fn default_one() -> f32 {
     1.0
+}
+
+fn default_seek_time() -> f64 {
+    5.0
 }
 
 impl Default for SamplerSettings {
@@ -214,6 +221,7 @@ impl Default for SamplerSettings {
             fixed_length: 0.0,
             fixed_length_multiply: 1.0,
             reset_players: false,
+            seek_time: 5.0,
         }
     }
 }

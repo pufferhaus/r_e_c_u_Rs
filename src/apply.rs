@@ -158,6 +158,8 @@ pub fn apply<R: RackHandle>(action: Action, state: &mut SharedState, rack: &mut 
         }
         Action::TogglePlayPause => rack.toggle_play_pause_now(),
         Action::SeekRelative(s) => rack.seek_relative_now(s),
+        Action::SeekForward => rack.seek_relative_now(state.sampler.seek_time),
+        Action::SeekBack => rack.seek_relative_now(-state.sampler.seek_time),
         Action::SetRate(r) => rack.set_rate_now(r),
         Action::Reload => rack.reload_all(),
         Action::CycleSetting(id) => cycle_setting(state, id),
@@ -415,6 +417,15 @@ fn cycle_setting(state: &mut SharedState, id: SettingId) {
             };
         }
         SettingId::ResetPlayers => s.reset_players = !s.reset_players,
+        SettingId::SeekTime => {
+            const STEPS: &[f64] = &[0.5, 1.0, 5.0, 10.0, 15.0, 30.0, 60.0, 120.0];
+            let next = STEPS
+                .iter()
+                .find(|&&v| v > s.seek_time)
+                .copied()
+                .unwrap_or(STEPS[0]);
+            s.seek_time = next;
+        }
     }
 }
 
@@ -1070,5 +1081,21 @@ mod tests {
         assert_eq!(s.len(), 10, "got: {s}");
         assert_eq!(&s[4..5], "-");
         assert_eq!(&s[7..8], "-");
+    }
+
+    #[test]
+    fn seek_time_cycles_through_steps() {
+        let mut state = SharedState::new();
+        let mut rack = SpyRack::default();
+        // Default is 5.0; each cycle picks the next larger step.
+        apply(Action::CycleSetting(SettingId::SeekTime), &mut state, &mut rack);
+        assert_eq!(state.sampler.seek_time, 10.0);
+        apply(Action::CycleSetting(SettingId::SeekTime), &mut state, &mut rack);
+        assert_eq!(state.sampler.seek_time, 15.0);
+        // Advance to end of table; next cycle wraps to 0.5.
+        for _ in 0..4 {
+            apply(Action::CycleSetting(SettingId::SeekTime), &mut state, &mut rack);
+        }
+        assert_eq!(state.sampler.seek_time, 0.5);
     }
 }

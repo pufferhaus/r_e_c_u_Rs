@@ -163,6 +163,7 @@ fn parse_action(s: &str) -> std::result::Result<Action, ()> {
             "FixedLengthMode" => SettingId::FixedLengthMode,
             "FixedLengthMultiply" => SettingId::FixedLengthMultiply,
             "ResetPlayers" => SettingId::ResetPlayers,
+            "SeekTime" => SettingId::SeekTime,
             _ => return Err(()),
         };
         return Ok(Action::CycleSetting(id));
@@ -185,6 +186,8 @@ fn parse_action(s: &str) -> std::result::Result<Action, ()> {
         "SetLoopOut" => Action::SetLoopOut,
         "ClearLoop" => Action::ClearLoop,
         "TogglePlayPause" => Action::TogglePlayPause,
+        "SeekForward" => Action::SeekForward,
+        "SeekBack" => Action::SeekBack,
         "Reload" => Action::Reload,
         "DetourEnter" => Action::DetourEnter,
         "DetourExit" => Action::DetourExit,

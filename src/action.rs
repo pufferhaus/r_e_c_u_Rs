@@ -32,6 +32,10 @@ pub enum Action {
     // Playback
     TogglePlayPause,
     SeekRelative(f64),
+    /// Seek forward by `SamplerSettings::seek_time` seconds.
+    SeekForward,
+    /// Seek backward by `SamplerSettings::seek_time` seconds.
+    SeekBack,
     SetRate(f32),
     Reload,
 
@@ -82,6 +86,7 @@ pub enum SettingId {
     FixedLengthMode,
     FixedLengthMultiply,
     ResetPlayers,
+    SeekTime,
 }
 
 #[cfg(test)]
