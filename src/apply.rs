@@ -399,7 +399,8 @@ fn cycle_setting(state: &mut SharedState, id: SettingId) {
         SettingId::LoadNext => {
             s.load_next = match s.load_next {
                 LoadNext::Auto => LoadNext::Manual,
-                LoadNext::Manual => LoadNext::Auto,
+                LoadNext::Manual => LoadNext::Random,
+                LoadNext::Random => LoadNext::Auto,
             }
         }
         SettingId::RandStartMode => s.rand_start_mode = !s.rand_start_mode,

@@ -152,6 +152,7 @@ pub enum OnLoad {
 pub enum LoadNext {
     Auto,
     Manual,
+    Random,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

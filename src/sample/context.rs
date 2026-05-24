@@ -5,7 +5,7 @@
 use rand::Rng;
 
 use crate::sample::modes::apply_rand_start;
-use crate::state::{Bank, SamplerSettings, Slot};
+use crate::state::{Bank, LoadNext, SamplerSettings, Slot};
 
 /// Pick the next slot to queue. Currently chooses the slot directly after
 /// `current_slot_index` (wrapping). Random modes are layered on top.
@@ -19,6 +19,18 @@ pub fn get_next_context<R: Rng>(
     if n == 0 {
         return None;
     }
+
+    if settings.load_next == LoadNext::Random {
+        let occupied: Vec<&Slot> = bank.slots.iter().flatten().collect();
+        if occupied.is_empty() {
+            return None;
+        }
+        let pick = rng.gen_range(0..occupied.len());
+        let mut s = occupied[pick].clone();
+        apply_rand_start(&mut s, settings, rng);
+        return Some(s);
+    }
+
     // Wrap around looking for the next non-empty slot.
     for offset in 1..=n {
         let idx = (current_slot_index as usize + offset) % n;
@@ -73,5 +85,21 @@ mod tests {
         let b = Bank::empty();
         let mut rng = ChaCha8Rng::seed_from_u64(0);
         assert!(get_next_context(&b, 0, &SamplerSettings::default(), &mut rng).is_none());
+    }
+
+    #[test]
+    fn load_next_random_picks_from_occupied_slots() {
+        let mut b = Bank::empty();
+        b.slots[0] = Some(s("a"));
+        b.slots[2] = Some(s("c"));
+        b.slots[4] = Some(s("e"));
+        let mut settings = SamplerSettings::default();
+        settings.load_next = LoadNext::Random;
+        // Run many times; all results must be from the occupied set.
+        let mut rng = ChaCha8Rng::seed_from_u64(42);
+        for _ in 0..50 {
+            let got = get_next_context(&b, 0, &settings, &mut rng).unwrap();
+            assert!(["a", "c", "e"].contains(&got.name.as_str()));
+        }
     }
 }
