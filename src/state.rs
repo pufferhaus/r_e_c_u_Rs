@@ -138,6 +138,8 @@ pub enum OnStart {
     Play,
     Show,
     PlayShow,
+    PauseHide,
+    PauseShow,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

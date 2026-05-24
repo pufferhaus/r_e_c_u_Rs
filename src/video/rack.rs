@@ -19,7 +19,7 @@ pub enum DetourCommand {
 
 use crate::apply::RackHandle;
 use crate::error::Result;
-use crate::state::{Bank, LoopType, OnFinish, SamplerSettings, Slot};
+use crate::state::{Bank, LoopType, OnFinish, OnStart, SamplerSettings, Slot};
 use crate::video::player::{Player, PlayerStatus};
 
 pub struct PlayerRack {
@@ -106,7 +106,10 @@ impl PlayerRack {
 
     fn tick_sequential(&mut self) {
         if self.current.status == PlayerStatus::Loaded {
-            self.current.play();
+            match self.settings.on_start {
+                OnStart::Play | OnStart::PlayShow => self.current.play(),
+                OnStart::Show | OnStart::PauseShow | OnStart::PauseHide => self.current.pause(),
+            }
         }
         // While current is playing and next is empty, pre-queue the successor
         // slot so that OnFinish::Switch can swap to a pre-rolled player.

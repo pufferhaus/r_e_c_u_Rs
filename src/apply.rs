@@ -403,7 +403,9 @@ fn cycle_setting(state: &mut SharedState, id: SettingId) {
             s.on_start = match s.on_start {
                 OnStart::Play => OnStart::Show,
                 OnStart::Show => OnStart::PlayShow,
-                OnStart::PlayShow => OnStart::Play,
+                OnStart::PlayShow => OnStart::PauseHide,
+                OnStart::PauseHide => OnStart::PauseShow,
+                OnStart::PauseShow => OnStart::Play,
             }
         }
         SettingId::OnLoad => {

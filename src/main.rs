@@ -431,7 +431,9 @@ fn main() -> anyhow::Result<()> {
             let sa = state.sampler.strobe_amount as u64;
             sa == 0 || frame_count % (sa + 1) == 0
         };
-        if strobe_show {
+        let pause_hidden = state.sampler.on_start == recur::state::OnStart::PauseHide
+            && rack.current.status == recur::video::player::PlayerStatus::Paused;
+        if strobe_show && !pause_hidden {
             if let Some(frame) = latest_rgba.as_ref() {
                 render.draw_video_layer(frame.data(), frame.width, frame.height, 1.0);
             }
