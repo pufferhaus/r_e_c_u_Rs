@@ -240,6 +240,7 @@ fn main() -> anyhow::Result<()> {
     let max_frames = args.smoke_frames;
     let mut frame_count: u64 = 0;
     let mut t_next = Instant::now();
+    let mut feedback_buf: Vec<u8> = Vec::new();
 
     loop {
         // 1. Drain input → Actions
@@ -435,7 +436,25 @@ fn main() -> anyhow::Result<()> {
             && rack.current.status == recur::video::player::PlayerStatus::Paused;
         if strobe_show && !pause_hidden {
             if let Some(frame) = latest_rgba.as_ref() {
-                render.draw_video_layer(frame.data(), frame.width, frame.height, 1.0);
+                let raw = frame.data();
+                if state.feedback_active
+                    && !feedback_buf.is_empty()
+                    && feedback_buf.len() == raw.len()
+                {
+                    let blended: Vec<u8> = raw
+                        .iter()
+                        .zip(feedback_buf.iter())
+                        .map(|(&a, &b)| ((a as u16 + b as u16) / 2) as u8)
+                        .collect();
+                    feedback_buf.copy_from_slice(&blended);
+                    render.draw_video_layer(&blended, frame.width, frame.height, 1.0);
+                } else {
+                    if state.feedback_active {
+                        feedback_buf.resize(raw.len(), 0);
+                        feedback_buf.copy_from_slice(raw);
+                    }
+                    render.draw_video_layer(raw, frame.width, frame.height, 1.0);
+                }
             }
         }
 

@@ -61,6 +61,9 @@ pub enum Action {
     /// Move the param-edit focus to slot 0..=7.
     ShaderParamSelect(u8),
 
+    /// Toggle framebuffer loopback (blend previous frame with current).
+    ToggleFeedback,
+
     // Detour (Phase 3)
     DetourEnter,
     DetourExit,

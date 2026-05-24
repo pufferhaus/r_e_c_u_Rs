@@ -176,6 +176,7 @@ pub fn apply<R: RackHandle>(action: Action, state: &mut SharedState, rack: &mut 
         Action::SeekBack => rack.seek_relative_now(-state.sampler.seek_time),
         Action::SetRate(r) => rack.set_rate_now(r),
         Action::Reload => rack.reload_all(),
+        Action::ToggleFeedback => state.feedback_active = !state.feedback_active,
         Action::CycleSetting(id) => cycle_setting(state, id),
         Action::TriggerShaderSlot(n) => {
             let n = (n as usize).min(crate::shader::SHADER_SLOTS_PER_BANK - 1);

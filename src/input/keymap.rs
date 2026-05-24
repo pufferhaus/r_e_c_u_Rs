@@ -211,6 +211,7 @@ fn parse_action(s: &str) -> std::result::Result<Action, ()> {
         "DetourCycleMix" => Action::DetourCycleMix,
         "AddCaptureSlot" => Action::AddCaptureSlot,
         "RecordToggle" => Action::RecordToggle,
+        "ToggleFeedback" => Action::ToggleFeedback,
         _ => return Err(()),
     };
     Ok(action)
