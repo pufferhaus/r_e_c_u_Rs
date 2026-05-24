@@ -81,7 +81,16 @@ pub fn apply<R: RackHandle>(action: Action, state: &mut SharedState, rack: &mut 
             };
         }
         Action::ToggleFunction => {
-            state.function_on = !state.function_on;
+            if state.sampler.func_gated {
+                state.function_on = true;
+            } else {
+                state.function_on = !state.function_on;
+            }
+        }
+        Action::FunctionRelease => {
+            if state.sampler.func_gated {
+                state.function_on = false;
+            }
         }
         Action::SelectSlot(n) => {
             // Gating: Fn → map highlighted browser row → slot.
@@ -423,6 +432,7 @@ fn cycle_setting(state: &mut SharedState, id: SettingId) {
         }
         SettingId::ResetPlayers => s.reset_players = !s.reset_players,
         SettingId::ActionGated => s.action_gated = !s.action_gated,
+        SettingId::FuncGated => s.func_gated = !s.func_gated,
         SettingId::SeekTime => {
             const STEPS: &[f64] = &[0.5, 1.0, 5.0, 10.0, 15.0, 30.0, 60.0, 120.0];
             let next = STEPS
@@ -1087,6 +1097,34 @@ mod tests {
         assert_eq!(s.len(), 10, "got: {s}");
         assert_eq!(&s[4..5], "-");
         assert_eq!(&s[7..8], "-");
+    }
+
+    #[test]
+    fn func_gated_toggle_sets_true() {
+        let mut state = SharedState::new();
+        state.sampler.func_gated = true;
+        let mut rack = SpyRack::default();
+        apply(Action::ToggleFunction, &mut state, &mut rack);
+        assert!(state.function_on);
+    }
+
+    #[test]
+    fn func_gated_release_sets_false() {
+        let mut state = SharedState::new();
+        state.sampler.func_gated = true;
+        state.function_on = true;
+        let mut rack = SpyRack::default();
+        apply(Action::FunctionRelease, &mut state, &mut rack);
+        assert!(!state.function_on);
+    }
+
+    #[test]
+    fn func_release_without_gated_is_noop() {
+        let mut state = SharedState::new();
+        state.function_on = true;
+        let mut rack = SpyRack::default();
+        apply(Action::FunctionRelease, &mut state, &mut rack);
+        assert!(state.function_on); // unchanged
     }
 
     #[test]

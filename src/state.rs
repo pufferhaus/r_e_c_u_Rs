@@ -201,6 +201,9 @@ pub struct SamplerSettings {
     /// Hold slot key to play; release to stop.
     #[serde(default)]
     pub action_gated: bool,
+    /// Shift acts as gate (down=enter FN, up=exit) instead of toggle.
+    #[serde(default)]
+    pub func_gated: bool,
 }
 
 fn default_one() -> f32 {
@@ -226,6 +229,7 @@ impl Default for SamplerSettings {
             reset_players: false,
             seek_time: 5.0,
             action_gated: false,
+            func_gated: false,
         }
     }
 }

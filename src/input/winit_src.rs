@@ -32,6 +32,8 @@ impl WinitSource {
             if let PhysicalKey::Code(code) = event.physical_key {
                 if let Some(n) = digit_slot(code) {
                     self.releases.push(Action::SlotRelease(n));
+                } else if matches!(code, KeyCode::ShiftLeft | KeyCode::ShiftRight) {
+                    self.releases.push(Action::FunctionRelease);
                 }
             }
             return;

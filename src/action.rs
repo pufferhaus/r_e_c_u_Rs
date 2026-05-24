@@ -18,6 +18,9 @@ pub enum Action {
     EnterMode(DisplayMode),
     ToggleNowNext,
     ToggleFunction,
+    /// Key-up for the function (Shift) key. In func_gated mode this exits FN
+    /// mode instead of leaving toggle state unchanged.
+    FunctionRelease,
 
     // Banks & slots
     /// Numpad 0-9. When `function_on`, this *maps* the highlighted browser
@@ -91,6 +94,7 @@ pub enum SettingId {
     ResetPlayers,
     SeekTime,
     ActionGated,
+    FuncGated,
 }
 
 #[cfg(test)]

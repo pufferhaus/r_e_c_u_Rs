@@ -172,6 +172,7 @@ fn parse_action(s: &str) -> std::result::Result<Action, ()> {
             "ResetPlayers" => SettingId::ResetPlayers,
             "SeekTime" => SettingId::SeekTime,
             "ActionGated" => SettingId::ActionGated,
+            "FuncGated" => SettingId::FuncGated,
             _ => return Err(()),
         };
         return Ok(Action::CycleSetting(id));
@@ -188,6 +189,7 @@ fn parse_action(s: &str) -> std::result::Result<Action, ()> {
         "Panic" => Action::Panic,
         "ToggleNowNext" => Action::ToggleNowNext,
         "ToggleFunction" => Action::ToggleFunction,
+        "FunctionRelease" => Action::FunctionRelease,
         "PrevBank" => Action::PrevBank,
         "NextBank" => Action::NextBank,
         "SetLoopIn" => Action::SetLoopIn,
