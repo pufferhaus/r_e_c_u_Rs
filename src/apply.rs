@@ -99,6 +99,11 @@ pub fn apply<R: RackHandle>(action: Action, state: &mut SharedState, rack: &mut 
             }
             state.function_on = false;
         }
+        Action::SlotRelease(_n) => {
+            if state.sampler.action_gated {
+                rack.reload_all();
+            }
+        }
         Action::PrevBank => {
             if state.bank_number > 0 {
                 state.bank_number -= 1;
@@ -417,6 +422,7 @@ fn cycle_setting(state: &mut SharedState, id: SettingId) {
             };
         }
         SettingId::ResetPlayers => s.reset_players = !s.reset_players,
+        SettingId::ActionGated => s.action_gated = !s.action_gated,
         SettingId::SeekTime => {
             const STEPS: &[f64] = &[0.5, 1.0, 5.0, 10.0, 15.0, 30.0, 60.0, 120.0];
             let next = STEPS
@@ -1081,6 +1087,23 @@ mod tests {
         assert_eq!(s.len(), 10, "got: {s}");
         assert_eq!(&s[4..5], "-");
         assert_eq!(&s[7..8], "-");
+    }
+
+    #[test]
+    fn slot_release_with_action_gated_reloads() {
+        let mut state = SharedState::new();
+        state.sampler.action_gated = true;
+        let mut rack = SpyRack::default();
+        apply(Action::SlotRelease(1), &mut state, &mut rack);
+        assert_eq!(rack.reload_count, 1);
+    }
+
+    #[test]
+    fn slot_release_without_action_gated_is_noop() {
+        let mut state = SharedState::new();
+        let mut rack = SpyRack::default();
+        apply(Action::SlotRelease(1), &mut state, &mut rack);
+        assert_eq!(rack.reload_count, 0);
     }
 
     #[test]

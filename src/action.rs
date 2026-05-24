@@ -23,6 +23,9 @@ pub enum Action {
     /// Numpad 0-9. When `function_on`, this *maps* the highlighted browser
     /// item to slot `n`; otherwise it *triggers* slot `n` of the current bank.
     SelectSlot(u8),
+    /// Key-up for slot `n`. Only emitted by input sources; consumed by apply
+    /// when `action_gated` is true to stop playback on release.
+    SlotRelease(u8),
     PrevBank,
     NextBank,
     SetLoopIn,
@@ -87,6 +90,7 @@ pub enum SettingId {
     FixedLengthMultiply,
     ResetPlayers,
     SeekTime,
+    ActionGated,
 }
 
 #[cfg(test)]

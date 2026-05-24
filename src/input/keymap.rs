@@ -89,6 +89,13 @@ fn parse_action(s: &str) -> std::result::Result<Action, ()> {
         return Ok(Action::SelectSlot(n));
     }
     if let Some(rest) = s
+        .strip_prefix("SlotRelease(")
+        .and_then(|r| r.strip_suffix(')'))
+    {
+        let n: u8 = rest.parse().map_err(|_| ())?;
+        return Ok(Action::SlotRelease(n));
+    }
+    if let Some(rest) = s
         .strip_prefix("EnterMode(")
         .and_then(|r| r.strip_suffix(')'))
     {
@@ -164,6 +171,7 @@ fn parse_action(s: &str) -> std::result::Result<Action, ()> {
             "FixedLengthMultiply" => SettingId::FixedLengthMultiply,
             "ResetPlayers" => SettingId::ResetPlayers,
             "SeekTime" => SettingId::SeekTime,
+            "ActionGated" => SettingId::ActionGated,
             _ => return Err(()),
         };
         return Ok(Action::CycleSetting(id));

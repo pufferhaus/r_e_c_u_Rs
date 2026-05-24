@@ -16,6 +16,7 @@ const ITEMS: &[(SettingId, &str)] = &[
     (SettingId::FixedLengthMultiply, "fixed_length_multiply"),
     (SettingId::ResetPlayers, "reset_players"),
     (SettingId::SeekTime, "seek_time"),
+    (SettingId::ActionGated, "action_gated"),
 ];
 
 pub struct SettingsBody {
@@ -94,6 +95,7 @@ fn value_for(state: &SharedState, id: SettingId) -> String {
         SettingId::FixedLengthMultiply => format!("{:.2}x", s.fixed_length_multiply),
         SettingId::ResetPlayers => s.reset_players.to_string(),
         SettingId::SeekTime => format!("{}s", s.seek_time),
+        SettingId::ActionGated => s.action_gated.to_string(),
     }
 }
 

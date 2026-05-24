@@ -198,6 +198,9 @@ pub struct SamplerSettings {
     /// Seek increment in seconds; cycled through the SEEK_STEPS table.
     #[serde(default = "default_seek_time")]
     pub seek_time: f64,
+    /// Hold slot key to play; release to stop.
+    #[serde(default)]
+    pub action_gated: bool,
 }
 
 fn default_one() -> f32 {
@@ -222,6 +225,7 @@ impl Default for SamplerSettings {
             fixed_length_multiply: 1.0,
             reset_players: false,
             seek_time: 5.0,
+            action_gated: false,
         }
     }
 }

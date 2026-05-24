@@ -13,7 +13,8 @@ use crate::action::Action;
 /// Accumulated input state fed from winit events.
 pub struct WinitSource {
     keymap: Keymap,
-    buffer: Vec<String>, // raw key strings, resolved at poll() time
+    buffer: Vec<String>,          // raw key strings, resolved at poll() time
+    releases: Vec<Action>,        // pre-formed release actions (SlotRelease, FunctionRelease)
 }
 
 impl WinitSource {
@@ -21,12 +22,18 @@ impl WinitSource {
         Self {
             keymap,
             buffer: Vec::new(),
+            releases: Vec::new(),
         }
     }
 
     /// Call this from the winit event loop for each `KeyboardInput` event.
     pub fn push_key_event(&mut self, event: &KeyEvent) {
-        if event.state != ElementState::Pressed {
+        if event.state == ElementState::Released {
+            if let PhysicalKey::Code(code) = event.physical_key {
+                if let Some(n) = digit_slot(code) {
+                    self.releases.push(Action::SlotRelease(n));
+                }
+            }
             return;
         }
         if let Some(raw) = key_to_raw(&event.logical_key, event.physical_key) {
@@ -38,9 +45,29 @@ impl WinitSource {
     /// for overrides (e.g. `KeyR` remap inside `DetourScrub`). Drains the buffer.
     pub fn poll(&mut self, mode: crate::state::ControlMode) -> Vec<Action> {
         let raws = std::mem::take(&mut self.buffer);
-        raws.into_iter()
+        let mut actions: Vec<Action> = raws
+            .into_iter()
             .filter_map(|k| self.keymap.lookup_with_mode(&k, mode))
-            .collect()
+            .collect();
+        actions.extend(std::mem::take(&mut self.releases));
+        actions
+    }
+}
+
+/// Map Digit0..=Digit9 physical key codes to slot indices 0..=9.
+fn digit_slot(code: KeyCode) -> Option<u8> {
+    match code {
+        KeyCode::Digit0 => Some(0),
+        KeyCode::Digit1 => Some(1),
+        KeyCode::Digit2 => Some(2),
+        KeyCode::Digit3 => Some(3),
+        KeyCode::Digit4 => Some(4),
+        KeyCode::Digit5 => Some(5),
+        KeyCode::Digit6 => Some(6),
+        KeyCode::Digit7 => Some(7),
+        KeyCode::Digit8 => Some(8),
+        KeyCode::Digit9 => Some(9),
+        _ => None,
     }
 }
 
