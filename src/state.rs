@@ -129,6 +129,7 @@ pub enum LoopType {
 pub enum OnFinish {
     Switch,
     Repeat,
+    Nothing,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

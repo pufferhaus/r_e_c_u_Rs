@@ -379,7 +379,8 @@ fn cycle_setting(state: &mut SharedState, id: SettingId) {
         SettingId::OnFinish => {
             s.on_finish = match s.on_finish {
                 OnFinish::Switch => OnFinish::Repeat,
-                OnFinish::Repeat => OnFinish::Switch,
+                OnFinish::Repeat => OnFinish::Nothing,
+                OnFinish::Nothing => OnFinish::Switch,
             }
         }
         SettingId::OnStart => {

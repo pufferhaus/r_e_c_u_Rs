@@ -141,6 +141,7 @@ impl PlayerRack {
                         }
                     }
                 }
+                OnFinish::Nothing => {}
             }
         }
     }
@@ -344,6 +345,16 @@ mod tests {
         assert_eq!(r.last.status, PlayerStatus::Empty);
         assert_eq!(r.current.status, PlayerStatus::Empty);
         assert_eq!(r.next.status, PlayerStatus::Empty);
+    }
+
+    #[test]
+    fn on_finish_nothing_holds_finished_state() {
+        let mut s = SamplerSettings::default();
+        s.on_finish = OnFinish::Nothing;
+        let mut r = PlayerRack::new(s, 720, 480);
+        r.current.status = PlayerStatus::Finished;
+        r.tick();
+        assert_eq!(r.current.status, PlayerStatus::Finished);
     }
 
     #[test]
