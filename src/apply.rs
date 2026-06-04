@@ -75,6 +75,8 @@ pub fn apply<R: RackHandle>(action: Action, state: &mut SharedState, rack: &mut 
         Action::EnterMode(m) => {
             state.display_mode = m;
         }
+        Action::PrevMode => state.display_mode = step_mode(state.display_mode, -1),
+        Action::NextMode => state.display_mode = step_mode(state.display_mode, 1),
         Action::ToggleNowNext => {
             state.player_mode = match state.player_mode {
                 PlayerMode::Now => PlayerMode::Next,
@@ -387,6 +389,24 @@ pub fn apply<R: RackHandle>(action: Action, state: &mut SharedState, rack: &mut 
     }
 }
 
+/// Step `current` by `dir` (+1 / -1) through the standard display modes, with
+/// wrap-around. Detour (`Frames`) is intentionally excluded — it has dedicated
+/// enter/exit keys with scrub-mode setup. A current mode outside the list
+/// (i.e. Frames) steps to the first entry.
+fn step_mode(current: DisplayMode, dir: i32) -> DisplayMode {
+    const CYCLE: [DisplayMode; 5] = [
+        DisplayMode::Sampler,
+        DisplayMode::Browser,
+        DisplayMode::Settings,
+        DisplayMode::Shaders,
+        DisplayMode::ShdrBnk,
+    ];
+    let n = CYCLE.len() as i32;
+    let idx = CYCLE.iter().position(|&m| m == current).unwrap_or(0) as i32;
+    let next = (idx + dir).rem_euclid(n) as usize;
+    CYCLE[next]
+}
+
 fn cycle_setting(state: &mut SharedState, id: SettingId) {
     let s = &mut state.sampler;
     match id {
@@ -508,6 +528,30 @@ fn today_yyyymmdd() -> String {
 mod tests {
     use super::*;
     use crate::state::{Slot, SourceKind};
+
+    #[test]
+    fn step_mode_cycles_and_wraps() {
+        // Forward through the 5-mode list.
+        assert_eq!(step_mode(DisplayMode::Sampler, 1), DisplayMode::Browser);
+        assert_eq!(step_mode(DisplayMode::Browser, 1), DisplayMode::Settings);
+        assert_eq!(step_mode(DisplayMode::ShdrBnk, 1), DisplayMode::Sampler); // wrap end→start
+        // Backward.
+        assert_eq!(step_mode(DisplayMode::Browser, -1), DisplayMode::Sampler);
+        assert_eq!(step_mode(DisplayMode::Sampler, -1), DisplayMode::ShdrBnk); // wrap start→end
+        // Frames (Detour) isn't in the cycle → steps to the first entry.
+        assert_eq!(step_mode(DisplayMode::Frames, 1), DisplayMode::Browser);
+    }
+
+    #[test]
+    fn prev_next_mode_actions_change_display_mode() {
+        let mut st = SharedState::new();
+        let mut rack = SpyRack::default();
+        st.display_mode = DisplayMode::Sampler;
+        apply(Action::NextMode, &mut st, &mut rack);
+        assert_eq!(st.display_mode, DisplayMode::Browser);
+        apply(Action::PrevMode, &mut st, &mut rack);
+        assert_eq!(st.display_mode, DisplayMode::Sampler);
+    }
 
     #[derive(Default, Debug)]
     struct SpyRack {

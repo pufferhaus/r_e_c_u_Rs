@@ -16,6 +16,10 @@ pub enum Action {
 
     // Mode switching
     EnterMode(DisplayMode),
+    /// Step to the previous / next mode in the display-mode list (numpad
+    /// one-press mode navigation). Detour is reached via its own keys.
+    PrevMode,
+    NextMode,
     ToggleNowNext,
     ToggleFunction,
     /// Key-up for the function (Shift) key. In func_gated mode this exits FN

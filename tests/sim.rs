@@ -16,6 +16,8 @@ use recur::status::grid::{TextGrid, ATTR_INVERSE};
 use recur::ui::ScreenStack;
 
 /// Records what the rack was asked to do so the test can assert on it.
+/// Not every field is asserted in every scenario, hence the allow.
+#[allow(dead_code)]
 #[derive(Default)]
 struct SimRack {
     triggers: Vec<(u8, u8, String)>,
@@ -241,22 +243,19 @@ fn simulate_full_ui_walkthrough() {
     sim.press("ShiftLeft");
     sim.check("ShiftLeft again → function OFF", !sim.state.function_on);
 
-    // ---- 6. Transport: play/pause + seek ----
-    println!("\n[6] TRANSPORT play/pause + seek (numpad FN layer)");
+    // ---- 6. Transport play/pause + FN mode navigation ----
+    println!("\n[6] TRANSPORT play/pause + FN mode navigation");
     let before = sim.rack.toggles;
     sim.press("Space");
     sim.check("Space toggled play/pause on rack", sim.rack.toggles == before + 1);
-    // Seek is on the FN layer of the operator keys: FN+× fwd, FN+/ back.
-    sim.press_fn("NumpadMultiply");
-    sim.check(
-        "FN+× seeks forward by seek_time",
-        sim.rack.seeks.last() == Some(&sim.state.sampler.seek_time),
-    );
-    sim.press_fn("NumpadDivide");
-    sim.check(
-        "FN+/ seeks backward",
-        sim.rack.seeks.last() == Some(&(-sim.state.sampler.seek_time)),
-    );
+    // Mode list step (FN + ×/÷): Sampler→Browser→Settings→Shaders→ShdrBnk (wrap).
+    sim.state.display_mode = DisplayMode::Sampler;
+    sim.press_fn("NumpadDivide"); // ÷ = step down the list
+    sim.check("FN+÷ steps to next mode (Browser)", sim.state.display_mode == DisplayMode::Browser);
+    sim.press_fn("NumpadMultiply"); // × = step up the list
+    sim.check("FN+× steps back to previous mode (Sampler)", sim.state.display_mode == DisplayMode::Sampler);
+    sim.press_fn("NumpadMultiply"); // step up past the start → wraps to ShdrBnk
+    sim.check("FN+× wraps to end of list (ShdrBnk)", sim.state.display_mode == DisplayMode::ShdrBnk);
 
     // ---- 7. Feedback toggle (numpad FN layer) ----
     println!("\n[7] FEEDBACK effect toggle (FN+−)");

@@ -30,27 +30,34 @@ operator view (pad rotated 90° CCW):
 | `/` | nav down |
 | `−` | previous bank |
 | `+` | next bank |
-| `.` | play / pause |
+| `.` / `Del` | **tap** = play / pause · **hold** = FN modifier (see below) |
 | `Enter` | enter / confirm / map (in Browser) |
 | `Bksp` | back |
 | `NumLk` | now / next player |
 
-## FN layer — hold `000` (triple-tap `0`), then one key
+## FN layer — **hold `.` / `Del`**, then press another key
+
+The `.`/Del key is the function modifier: hold it and press another key for the
+FN action. A quick tap with nothing held is just play/pause. (Holding a key is
+reliable on the production pad, unlike the old `000` triple-tap, which the pad's
+NumLock-wrapping firmware swallowed.)
 
 | Key | Action | Key | Action |
 |---|---|---|---|
+| `×` | **prev mode** (up the list) | `+` | record toggle |
+| `/` | **next mode** (down the list) | `−` | feedback toggle |
 | slot 1 (`9`) | → Sampler | slot 7 (`7`) | loop in |
 | slot 2 (`6`) | → Browser | slot 8 (`4`) | clear loop |
 | slot 3 (`3`) | → Settings | slot 9 (`1`) | loop out |
 | slot 4 (`8`) | → Shaders | slot 0 (`0`) | add capture |
-| slot 5 (`5`) | → Shader bank | `×` | seek forward |
-| slot 6 (`2`) | → Detour | `/` | seek back |
-| `−` | feedback toggle | `+` | record toggle |
-| `.` | reload | `Enter` | detour exit |
-| `Bksp` | **PANIC** (reset all players) | | |
+| slot 5 (`5`) | → Shader bank | `Enter` | detour exit |
+| slot 6 (`2`) | → Detour | `Bksp` | **PANIC** (reset all players) |
 
-The FN arm is one-shot: it applies to the very next key, then clears (≈600 ms
-timeout if no key follows).
+Two ways to change mode: **hold `.` + `×`/`/`** scrolls up/down the mode list
+(Sampler → Browser → Settings → Shaders → ShaderBank, wrapping); **hold `.` +
+a digit** jumps straight to a mode. The `×`/`/` route works regardless of the
+pad's NumLock state; the digit jumps need NumLock on. Detour has its own
+enter (`.`+slot 6) / exit (`.`+Enter) and isn't part of the scroll cycle.
 
 ## Auto-context layers
 

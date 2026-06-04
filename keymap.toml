@@ -97,11 +97,10 @@
 "Numpad4" = "ClearLoop"            # slot 8
 "Numpad1" = "SetLoopOut"           # slot 9
 "Numpad0" = "AddCaptureSlot"       # slot 0
-"NumpadMultiply" = "SeekForward"   # ×
-"NumpadDivide" = "SeekBack"        # /
+"NumpadMultiply" = "PrevMode"      # ×  — step up the mode list
+"NumpadDivide" = "NextMode"        # /  — step down the mode list
 "NumpadSubtract" = "ToggleFeedback" # −
 "NumpadAdd" = "RecordToggle"       # +
-"NumpadDecimal" = "Reload"         # .
 "NumpadEnter" = "DetourExit"
 "Backspace" = "Panic"
 
