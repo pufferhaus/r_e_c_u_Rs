@@ -52,13 +52,23 @@ impl PiCard {
         Ok(Self { file })
     }
 
+    /// Open the first DRM card that supports KMS resource queries.
+    /// Skips cards that open but fail `resource_handles` (e.g. GPU-only nodes).
     fn open_default() -> Result<Self> {
         for path in ["/dev/dri/card0", "/dev/dri/card1"] {
-            if let Ok(c) = Self::open(path) {
-                return Ok(c);
+            match Self::open(path) {
+                Ok(c) => {
+                    if c.resource_handles().is_ok() {
+                        return Ok(c);
+                    }
+                    tracing::debug!("skip {path}: resource_handles unsupported");
+                }
+                Err(e) => tracing::debug!("skip {path}: {e}"),
             }
         }
-        Err(Error::Other("no DRM device found".into()))
+        Err(Error::Other(
+            "no DRM card with KMS support found (/dev/dri/card0, card1)".into(),
+        ))
     }
 
     /// Find the first connected composite (TV) connector.
