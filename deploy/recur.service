@@ -7,6 +7,13 @@ DefaultDependencies=no
 Type=simple
 User=imi
 WorkingDirectory=/home/imi/r_e_c_u_rs
+# Force the HDMI connector "on" before launch. Cheap monitors / capture cards /
+# KVMs that don't assert hot-plug or provide EDID leave the connector reporting
+# "disconnected" with 0 modes, so KMS gives the app no modes. Forcing status to
+# "on" makes the vc4 driver expose standard fallback modes. The `+` prefix runs
+# this as root even though the service runs as `imi`. `-` ignores failure (e.g.
+# when an HDMI display is properly detected and this path doesn't exist yet).
+ExecStartPre=+/bin/sh -c 'echo on > /sys/class/drm/card1-HDMI-A-1/status 2>/dev/null; echo on > /sys/class/drm/card1-HDMI-A-2/status 2>/dev/null; true'
 ExecStart=/home/imi/r_e_c_u_rs/r_e_c_u_rs
 Restart=on-failure
 RestartSec=5

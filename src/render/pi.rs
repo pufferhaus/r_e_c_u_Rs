@@ -152,16 +152,23 @@ impl<'a> drm::buffer::PlanarBuffer for GbmFb<'a> {
 
 // ── EGL + GBM context ────────────────────────────────────────────────────────
 
+// Field order matters: Rust drops fields top-to-bottom, so this list is
+// reverse-of-creation order. In particular the gbm `surface` MUST be declared
+// (and thus dropped) before the gbm `gbm` device that created it — dropping the
+// device first leaves the surface's buffer-object destructor calling into a
+// freed device and segfaults in libgbm. Likewise the EGL handles (which
+// reference the gbm surface/device) come before the gbm objects.
 struct PiContext {
-    card: PiCard,
-    #[allow(dead_code)]
-    gbm: GbmDevice<PiCard>,
-    surface: GbmSurface<()>,
-    egl: khronos_egl::DynamicInstance<khronos_egl::EGL1_5>,
-    egl_display: khronos_egl::Display,
+    gl: glow::Context,
+    egl_surface: khronos_egl::Surface,
     #[allow(dead_code)]
     egl_context: khronos_egl::Context,
-    egl_surface: khronos_egl::Surface,
+    egl_display: khronos_egl::Display,
+    egl: khronos_egl::DynamicInstance<khronos_egl::EGL1_5>,
+    surface: GbmSurface<()>,
+    #[allow(dead_code)]
+    gbm: GbmDevice<PiCard>,
+    card: PiCard,
     crtc_handle: drm::control::crtc::Handle,
     connector_handle: drm::control::connector::Handle,
     mode: drm::control::Mode,
@@ -169,7 +176,6 @@ struct PiContext {
     width: u32,
     #[allow(dead_code)]
     height: u32,
-    gl: glow::Context,
 }
 
 impl PiContext {
