@@ -23,6 +23,72 @@ use recur::input::winit_src::WinitSource;
 #[cfg(all(feature = "pi-base", not(feature = "desktop"), target_os = "linux"))]
 use recur::input::evdev_src::EvdevSource;
 
+// On Pi builds the video render backend is optional: the app runs in
+// SPI-LCD-only mode when no HDMI display is connected.
+#[cfg(all(feature = "pi-base", not(feature = "desktop")))]
+struct RenderGate(Option<recur::render::Render>);
+
+#[cfg(all(feature = "pi-base", not(feature = "desktop")))]
+impl RenderGate {
+    fn begin_frame(&mut self) {
+        if let Some(r) = &mut self.0 {
+            r.begin_frame();
+        }
+    }
+    fn end_frame(&mut self) {
+        if let Some(r) = &mut self.0 {
+            r.end_frame();
+        }
+    }
+    fn draw_video_layer(&mut self, data: &[u8], w: u32, h: u32, alpha: f32) {
+        if let Some(r) = &mut self.0 {
+            r.draw_video_layer(data, w, h, alpha);
+        }
+    }
+    fn draw_detour_layer(&mut self, data: &[u8], w: u32, h: u32, alpha: f32) {
+        if let Some(r) = &mut self.0 {
+            r.draw_detour_layer(data, w, h, alpha);
+        }
+    }
+    fn draw_text_grid(&mut self, grid: &recur::status::grid::TextGrid) {
+        if let Some(r) = &mut self.0 {
+            r.draw_text_grid(grid);
+        }
+    }
+    fn select_shader(&mut self, name: &str, params: [f32; 8]) -> anyhow::Result<()> {
+        if let Some(r) = &mut self.0 {
+            r.select_shader(name, params)
+        } else {
+            Ok(())
+        }
+    }
+    fn clear_shader(&mut self) {
+        if let Some(r) = &mut self.0 {
+            r.clear_shader();
+        }
+    }
+    fn pulse_shader_trigger(&mut self) {
+        if let Some(r) = &mut self.0 {
+            r.pulse_shader_trigger();
+        }
+    }
+    fn set_shader_params(&mut self, params: [f32; 8]) {
+        if let Some(r) = &mut self.0 {
+            r.set_shader_params(params);
+        }
+    }
+    fn upsert_shader(&mut self, name: &str, shader: recur::shader::LoadedShader) {
+        if let Some(r) = &mut self.0 {
+            r.upsert_shader(name, shader);
+        }
+    }
+    fn invalidate_shader(&mut self, name: &str) {
+        if let Some(r) = &mut self.0 {
+            r.invalidate_shader(name);
+        }
+    }
+}
+
 /// CLI alias for the runtime GLES profile (separate from the clap-internal enum
 /// so we can rename without breaking scripts).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
@@ -209,15 +275,16 @@ fn main() -> anyhow::Result<()> {
 
     #[cfg(all(feature = "pi-base", not(feature = "desktop"), target_os = "linux"))]
     let mut input = EvdevSource::open_all(keymap).unwrap_or_else(|e| {
-        tracing::warn!("evdev input unavailable: {e}; no input will be processed");
-        // open_all with a fake empty device list isn't possible, so we panic
-        // with a useful message rather than silently running inputless.
-        panic!("evdev: {e}");
+        tracing::warn!("evdev input unavailable: {e} — running without keyboard input");
+        EvdevSource::empty()
     });
 
     #[cfg(not(any(feature = "desktop", all(feature = "pi-base", target_os = "linux"))))]
     let _ = keymap;
 
+    // On pi builds: video output is optional — app runs SPI-LCD-only if HDMI unavailable.
+    // On desktop: fatal (window is the primary display).
+    #[cfg(feature = "desktop")]
     let mut render = recur::render::Render::new(
         cfg.render.width,
         cfg.render.height,
@@ -225,6 +292,19 @@ fn main() -> anyhow::Result<()> {
         state.gles_profile,
         &shader_dir,
     )?;
+
+    #[cfg(all(feature = "pi-base", not(feature = "desktop")))]
+    let mut render = RenderGate(
+        recur::render::Render::new(
+            cfg.render.width,
+            cfg.render.height,
+            "r_e_c_u_r",
+            state.gles_profile,
+            &shader_dir,
+        )
+        .map_err(|e| tracing::warn!("video output unavailable: {e} — running SPI-LCD-only mode"))
+        .ok(),
+    );
 
     #[cfg(all(feature = "pi-base", target_os = "linux"))]
     let mut panel = recur::status::pi::PiPanelBackend::open()
