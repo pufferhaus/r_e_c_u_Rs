@@ -76,7 +76,7 @@ mod tests {
         let mut s = SharedState::new();
         match b.handle(Action::NavLeft, &mut s) {
             ScreenResult::Action(Action::ShaderParamAdjust(-1)) => (),
-            other => panic!("expected ShaderParamAdjust(-1), got something else (got Action variant via Action(...) wrapper or wrong variant)"),
+            _other => panic!("expected ShaderParamAdjust(-1), got something else (got Action variant via Action(...) wrapper or wrong variant)"),
         }
     }
 

@@ -10,7 +10,7 @@ use evdev::{Device, EventType, KeyCode};
 
 use crate::action::Action;
 use crate::input::keymap::Keymap;
-use crate::state::ControlMode;
+use crate::state::{ControlMode, DisplayMode};
 
 const KP0_BURST_WINDOW: Duration = Duration::from_millis(120);
 
@@ -30,8 +30,6 @@ pub struct EvdevSource {
     kp0_pending: Vec<Instant>,
     /// FN modifier deadline. `Some(t)` while active, consumed on first use.
     fn_until: Option<Instant>,
-    /// Whether FN layer is logically on (mirrors app's function_on state).
-    fn_active: bool,
     /// Timestamp of last digit/kp0 press (for NumLock wrap detection).
     last_digit_press: Option<Instant>,
     /// Deferred NumLock press waiting for wrap-pair classification.
@@ -45,7 +43,6 @@ impl EvdevSource {
             keymap: Keymap::default(),
             kp0_pending: Vec::new(),
             fn_until: None,
-            fn_active: false,
             last_digit_press: None,
             numlock_pending: None,
         }
@@ -83,14 +80,13 @@ impl EvdevSource {
             keymap,
             kp0_pending: Vec::new(),
             fn_until: None,
-            fn_active: false,
             last_digit_press: None,
             numlock_pending: None,
         })
     }
 
     /// Non-blocking poll — returns translated `Action` values, same contract as `WinitSource`.
-    pub fn poll(&mut self, mode: ControlMode) -> Vec<Action> {
+    pub fn poll(&mut self, mode: ControlMode, display_mode: DisplayMode) -> Vec<Action> {
         let mut out = Vec::new();
         let now = Instant::now();
 
@@ -153,11 +149,13 @@ impl EvdevSource {
                         self.numlock_pending = None;
                         self.last_digit_press = Some(now);
                         if self.kp0_pending.len() >= 3 {
-                            // Burst: toggle FN layer.
-                            self.fn_active = !self.fn_active;
+                            // `000` burst → arm the FN layer for the next key.
+                            // One-shot (consumed by the next key or the timeout).
+                            // We deliberately do NOT emit ToggleFunction: the FN
+                            // layer is resolved via `fn_bindings`, whereas
+                            // `function_on` drives the (desktop Shift) map path.
                             self.fn_until = Some(now + FN_HOLD);
                             self.kp0_pending.clear();
-                            out.push(Action::ToggleFunction);
                         }
                         continue;
                     }
@@ -184,31 +182,26 @@ impl EvdevSource {
 
                 // Flush stale KP0 presses as SelectSlot(0) before processing this key.
                 flush_pending_kp0(&mut self.kp0_pending, &mut self.fn_until, &mut out);
-                flush_pending_numlock(&mut self.numlock_pending, &mut out, &self.keymap, mode);
+                flush_pending_numlock(
+                    &mut self.numlock_pending,
+                    &mut out,
+                    &self.keymap,
+                    mode,
+                    display_mode,
+                );
 
-                // Determine if FN layer applies.
-                let fn_armed = self
-                    .fn_until
-                    .map(|t| t > now)
-                    .unwrap_or(false);
-                let use_fn = self.fn_active || fn_armed;
-
-                // FN layer: look up fn_bindings for non-digit keys.
-                // Digit keys always go through normal bindings so SelectSlot
-                // continues to work (apply.rs routes to MapSlot when function_on=true).
-                let action = if use_fn && !is_digit_key(key) {
+                // FN layer applies to ANY key (digit or operator) while armed.
+                let use_fn = self.fn_until.map(|t| t > now).unwrap_or(false);
+                let action = if use_fn {
+                    self.fn_until = None; // one-shot: consume the arm
                     self.keymap
                         .lookup_fn(raw)
-                        .or_else(|| self.keymap.lookup_with_mode(raw, mode))
+                        .or_else(|| self.keymap.resolve(raw, display_mode, mode))
                 } else {
-                    self.keymap.lookup_with_mode(raw, mode)
+                    self.keymap.resolve(raw, display_mode, mode)
                 };
 
                 if let Some(a) = action {
-                    // Consume the timed FN arm on first non-digit use.
-                    if fn_armed && !is_digit_key(key) {
-                        self.fn_until = None;
-                    }
                     out.push(a);
                 }
             }
@@ -231,7 +224,7 @@ impl EvdevSource {
         let nl_cutoff = now.checked_sub(NUMLOCK_WRAP_WINDOW);
         if let Some(t) = self.numlock_pending {
             if nl_cutoff.map(|c| t < c).unwrap_or(false) {
-                if let Some(a) = self.keymap.lookup_with_mode("NumLock", mode) {
+                if let Some(a) = self.keymap.resolve("NumLock", display_mode, mode) {
                     out.push(a);
                 }
                 self.numlock_pending = None;
@@ -259,9 +252,10 @@ fn flush_pending_numlock(
     out: &mut Vec<Action>,
     keymap: &Keymap,
     mode: ControlMode,
+    display_mode: DisplayMode,
 ) {
     if pending.take().is_some() {
-        if let Some(a) = keymap.lookup_with_mode("NumLock", mode) {
+        if let Some(a) = keymap.resolve("NumLock", display_mode, mode) {
             out.push(a);
         }
     }
@@ -280,22 +274,6 @@ fn kp_digit(k: KeyCode) -> Option<u8> {
         KeyCode::KEY_KP9 => Some(9),
         _ => None,
     }
-}
-
-fn is_digit_key(k: KeyCode) -> bool {
-    matches!(
-        k,
-        KeyCode::KEY_KP0
-            | KeyCode::KEY_KP1
-            | KeyCode::KEY_KP2
-            | KeyCode::KEY_KP3
-            | KeyCode::KEY_KP4
-            | KeyCode::KEY_KP5
-            | KeyCode::KEY_KP6
-            | KeyCode::KEY_KP7
-            | KeyCode::KEY_KP8
-            | KeyCode::KEY_KP9
-    )
 }
 
 fn key_to_raw(k: KeyCode) -> Option<&'static str> {

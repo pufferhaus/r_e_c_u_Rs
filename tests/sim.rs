@@ -89,11 +89,12 @@ impl Sim {
         }
     }
 
-    /// Press a physical key (normal layer) — mirrors main.rs exactly.
+    /// Press a physical key (base layer) — mirrors the input sources, which now
+    /// resolve through the context-aware `resolve()` (detour / shader-bank).
     fn press(&mut self, key: &str) -> Action {
         let action = self
             .keymap
-            .lookup_with_mode(key, self.state.control_mode)
+            .resolve(key, self.state.display_mode, self.state.control_mode)
             .unwrap_or_else(|| panic!("key {key:?} not bound"));
         self.dispatch(action.clone());
         action
@@ -104,7 +105,10 @@ impl Sim {
         let action = self
             .keymap
             .lookup_fn(key)
-            .or_else(|| self.keymap.lookup_with_mode(key, self.state.control_mode))
+            .or_else(|| {
+                self.keymap
+                    .resolve(key, self.state.display_mode, self.state.control_mode)
+            })
             .unwrap_or_else(|| panic!("fn key {key:?} not bound"));
         self.dispatch(action.clone());
         action
@@ -229,25 +233,25 @@ fn simulate_full_ui_walkthrough() {
     let before = sim.rack.toggles;
     sim.press("Space");
     sim.check("Space toggled play/pause on rack", sim.rack.toggles == before + 1);
-    // Seek is a numpad FN-layer binding (Numpad6 / Numpad4).
-    sim.press_fn("Numpad6");
+    // Seek is on the FN layer of the operator keys: FN+× fwd, FN+/ back.
+    sim.press_fn("NumpadMultiply");
     sim.check(
-        "FN+6 seeks forward by seek_time",
+        "FN+× seeks forward by seek_time",
         sim.rack.seeks.last() == Some(&sim.state.sampler.seek_time),
     );
-    sim.press_fn("Numpad4");
+    sim.press_fn("NumpadDivide");
     sim.check(
-        "FN+4 seeks backward",
+        "FN+/ seeks backward",
         sim.rack.seeks.last() == Some(&(-sim.state.sampler.seek_time)),
     );
 
     // ---- 7. Feedback toggle (numpad FN layer) ----
-    println!("\n[7] FEEDBACK effect toggle (FN+5)");
+    println!("\n[7] FEEDBACK effect toggle (FN+−)");
     sim.check("feedback off initially", !sim.state.feedback_active);
-    sim.press_fn("Numpad5");
-    sim.check("FN+5 → feedback ON", sim.state.feedback_active);
-    sim.press_fn("Numpad5");
-    sim.check("FN+5 again → feedback OFF", !sim.state.feedback_active);
+    sim.press_fn("NumpadSubtract");
+    sim.check("FN+− → feedback ON", sim.state.feedback_active);
+    sim.press_fn("NumpadSubtract");
+    sim.check("FN+− again → feedback OFF", !sim.state.feedback_active);
 
     // ---- 8. Detour enter / exit ----
     println!("\n[8] DETOUR enter / exit");
@@ -296,4 +300,88 @@ fn simulate_full_ui_walkthrough() {
 
     println!("\n========== RESULT: {} passed, {} failed ==========\n", sim.passes, sim.fails);
     assert_eq!(sim.fails, 0, "{} simulated checks failed", sim.fails);
+}
+
+#[test]
+fn simulate_numpad_mapping() {
+    let mut sim = Sim::new();
+    println!("\n========== USB NUMPAD MAPPING ==========\n");
+
+    // ---- Reading-order slots: physical key 9 = slot 1, 0 = slot 0 ----
+    println!("[A] Reading-order slot triggers (normal layer)");
+    sim.state.display_mode = DisplayMode::Sampler;
+    for s in 0..10 {
+        sim.state.banks[0].slots[s] = Some(Slot {
+            source: recur::state::SourceKind::File(format!("/clips/s{s}.mp4").into()),
+            name: format!("s{s}.mp4"),
+            start: -1.0,
+            end: -1.0,
+            length: 0.0,
+            rate: 1.0,
+        });
+    }
+    // top-left physical key (Numpad9) → slot 1; lone key (Numpad0) → slot 0.
+    sim.press("Numpad9");
+    sim.check("physical 9 → slot 1", sim.rack.triggers.last().map(|t| t.1) == Some(1));
+    sim.press("Numpad1");
+    sim.check("physical 1 → slot 9", sim.rack.triggers.last().map(|t| t.1) == Some(9));
+    sim.press("Numpad0");
+    sim.check("physical 0 → slot 0", sim.rack.triggers.last().map(|t| t.1) == Some(0));
+    sim.press("Numpad5");
+    sim.check("physical 5 → slot 5 (centre)", sim.rack.triggers.last().map(|t| t.1) == Some(5));
+
+    // ---- Operator keys ----
+    println!("\n[B] Operator keys (normal layer)");
+    let a = sim.press("NumpadSubtract");
+    sim.check("− prev bank", matches!(a, Action::PrevBank));
+    let a = sim.press("NumpadAdd");
+    sim.check("+ next bank", matches!(a, Action::NextBank));
+    let a = sim.press("NumpadMultiply");
+    sim.check("× nav up", matches!(a, Action::NavUp));
+    let a = sim.press("NumpadDivide");
+    sim.check("/ nav down", matches!(a, Action::NavDown));
+    let a = sim.press("NumpadDecimal");
+    sim.check(". play/pause", matches!(a, Action::TogglePlayPause));
+
+    // ---- FN layer (000 then key) ----
+    println!("\n[C] FN layer (hold 000)");
+    let a = sim.press_fn("Numpad9");
+    sim.check("FN+9 → Sampler", matches!(a, Action::EnterMode(DisplayMode::Sampler)));
+    let a = sim.press_fn("Numpad6");
+    sim.check("FN+6 → Browser", matches!(a, Action::EnterMode(DisplayMode::Browser)));
+    let a = sim.press_fn("Numpad5");
+    sim.check("FN+5 → ShdrBnk", matches!(a, Action::EnterMode(DisplayMode::ShdrBnk)));
+    let a = sim.press_fn("Numpad7");
+    sim.check("FN+7 → loop in", matches!(a, Action::SetLoopIn));
+    let a = sim.press_fn("NumpadSubtract");
+    sim.check("FN+− → feedback", matches!(a, Action::ToggleFeedback));
+    let a = sim.press_fn("Backspace");
+    sim.check("FN+Bksp → panic", matches!(a, Action::Panic));
+
+    // ---- Auto-context: DETOUR ----
+    println!("\n[D] Auto-context — Detour scrub (digits become scrub controls)");
+    sim.state.display_mode = DisplayMode::Frames;
+    sim.state.control_mode = recur::state::ControlMode::DetourScrub;
+    let a = sim.press("Numpad8");
+    sim.check("in detour, physical 8 → scrub -1", matches!(a, Action::DetourScrubBy(-1)));
+    let a = sim.press("Numpad2");
+    sim.check("in detour, physical 2 → scrub +1", matches!(a, Action::DetourScrubBy(1)));
+    let a = sim.press("Numpad5");
+    sim.check("in detour, physical 5 → clear markers", matches!(a, Action::DetourClearMarkers));
+    let a = sim.press("Numpad9");
+    sim.check("in detour, physical 9 → cycle mix", matches!(a, Action::DetourCycleMix));
+    sim.state.control_mode = recur::state::ControlMode::Default;
+
+    // ---- Auto-context: SHADER BANK ----
+    println!("\n[E] Auto-context — Shader bank (digits trigger shader slots)");
+    sim.state.display_mode = DisplayMode::ShdrBnk;
+    let a = sim.press("Numpad9");
+    sim.check("in shdrbnk, physical 9 → shader slot 1", matches!(a, Action::TriggerShaderSlot(1)));
+    let a = sim.press("Numpad0");
+    sim.check("in shdrbnk, physical 0 → shader slot 0", matches!(a, Action::TriggerShaderSlot(0)));
+    let a = sim.press("NumpadMultiply");
+    sim.check("in shdrbnk, × still nav up", matches!(a, Action::NavUp));
+
+    println!("\n========== RESULT: {} passed, {} failed ==========\n", sim.passes, sim.fails);
+    assert_eq!(sim.fails, 0, "{} numpad checks failed", sim.fails);
 }

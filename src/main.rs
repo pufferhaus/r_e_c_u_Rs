@@ -355,10 +355,10 @@ fn main() -> anyhow::Result<()> {
         }
 
         #[cfg(feature = "desktop")]
-        let actions: Vec<Action> = input.poll(state.control_mode);
+        let actions: Vec<Action> = input.poll(state.control_mode, state.display_mode);
 
         #[cfg(all(feature = "pi-base", not(feature = "desktop"), target_os = "linux"))]
-        let actions: Vec<Action> = input.poll(state.control_mode);
+        let actions: Vec<Action> = input.poll(state.control_mode, state.display_mode);
 
         #[cfg(not(any(feature = "desktop", all(feature = "pi-base", target_os = "linux"))))]
         let actions: Vec<Action> = Vec::new();

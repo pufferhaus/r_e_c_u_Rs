@@ -43,13 +43,17 @@ impl WinitSource {
         }
     }
 
-    /// Resolve all buffered keys against the keymap, using the supplied mode
+    /// Resolve all buffered keys against the keymap, using the supplied modes
     /// for overrides (e.g. `KeyR` remap inside `DetourScrub`). Drains the buffer.
-    pub fn poll(&mut self, mode: crate::state::ControlMode) -> Vec<Action> {
+    pub fn poll(
+        &mut self,
+        mode: crate::state::ControlMode,
+        display_mode: crate::state::DisplayMode,
+    ) -> Vec<Action> {
         let raws = std::mem::take(&mut self.buffer);
         let mut actions: Vec<Action> = raws
             .into_iter()
-            .filter_map(|k| self.keymap.lookup_with_mode(&k, mode))
+            .filter_map(|k| self.keymap.resolve(&k, display_mode, mode))
             .collect();
         actions.extend(std::mem::take(&mut self.releases));
         actions
@@ -161,7 +165,12 @@ mod tests {
     fn poll_on_empty_returns_empty_vec() {
         let km = Keymap::default();
         let mut src = WinitSource::new(km);
-        assert!(src.poll(crate::state::ControlMode::Default).is_empty());
+        assert!(src
+            .poll(
+                crate::state::ControlMode::Default,
+                crate::state::DisplayMode::Sampler
+            )
+            .is_empty());
     }
 
     #[test]
