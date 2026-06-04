@@ -71,28 +71,44 @@ impl PiCard {
         ))
     }
 
-    /// Find the first connected composite (TV) connector.
+    /// Find a usable display connector.
+    ///
+    /// Priority: composite/TV/SVideo (Pi 3 analog jack) → HDMI (Pi 5).
+    /// Skips explicitly disconnected connectors; accepts Unknown state for
+    /// analog outputs which have no hot-plug detect.
     fn find_composite_connector(&self) -> Result<connector::Info> {
         let resources = self
             .resource_handles()
             .map_err(|e| Error::Other(format!("drm resources: {e}")))?;
+        let mut hdmi_candidate: Option<connector::Info> = None;
         for handle in resources.connectors() {
             let info = self
-                .get_connector(*handle, false)
+                .get_connector(*handle, true) // force mode probe
                 .map_err(|e| Error::Other(format!("drm connector: {e}")))?;
-            // Composite/TV/SVideo are analog with no hot-plug detect — KMS state
-            // is always Unknown. Accept Unknown; reject explicit Disconnected.
-            if info.state() == connector::State::Disconnected {
-                continue;
-            }
             use connector::Interface::*;
-            if matches!(info.interface(), Composite | TV | SVideo) {
-                return Ok(info);
+            match info.interface() {
+                Composite | TV | SVideo => {
+                    // Analog outputs have no hot-plug detect — state is always Unknown.
+                    if info.state() != connector::State::Disconnected {
+                        return Ok(info);
+                    }
+                }
+                HDMIA | HDMIB => {
+                    // Accept HDMI connectors regardless of reported state:
+                    // with hdmi_force_hotplug=1 the firmware drives the output
+                    // but the DRM state may still read Disconnected.
+                    // Prefer connectors that actually have modes over bare ones.
+                    if hdmi_candidate.is_none() || !info.modes().is_empty() {
+                        hdmi_candidate = Some(info);
+                    }
+                }
+                _ => {}
             }
         }
-        Err(Error::Other(
-            "no connected composite/TV connector found".into(),
-        ))
+        // Fall back to HDMI (Pi 5 has no composite jack).
+        hdmi_candidate.ok_or_else(|| {
+            Error::Other("no display connector found (tried composite, TV, HDMI)".into())
+        })
     }
 }
 
@@ -166,18 +182,32 @@ impl PiContext {
             .find(|m| m.size() == (width_hint as u16, height_hint as u16))
             .or_else(|| conn.modes().first())
             .copied()
-            .ok_or_else(|| Error::Other("no display modes available".into()))?;
+            .ok_or_else(|| Error::Other(
+                "no display modes available — connect an HDMI cable or dummy plug to port 1".into()
+            ))?;
         let (width, height) = (mode.size().0 as u32, mode.size().1 as u32);
 
-        let encoder_handle = conn
-            .current_encoder()
-            .ok_or_else(|| Error::Other("connector has no encoder".into()))?;
-        let enc = card
-            .get_encoder(encoder_handle)
-            .map_err(|e| Error::Other(format!("drm encoder: {e}")))?;
-        let crtc_handle = enc
-            .crtc()
-            .ok_or_else(|| Error::Other("encoder has no CRTC".into()))?;
+        // Prefer the currently-active encoder/CRTC. If none is active (common
+        // for HDMI on Pi 5 before first modeset), scan the connector's
+        // available encoders and pick the first that has a CRTC assigned.
+        let crtc_handle = if let Some(enc_handle) = conn.current_encoder() {
+            card.get_encoder(enc_handle)
+                .ok()
+                .and_then(|e| e.crtc())
+        } else {
+            None
+        }
+        .or_else(|| {
+            // Scan available encoders for any with a CRTC.
+            conn.encoders().iter().find_map(|&enc_handle| {
+                card.get_encoder(enc_handle).ok()?.crtc()
+            })
+        })
+        .or_else(|| {
+            // Last resort: grab any free CRTC from the resource list.
+            card.resource_handles().ok()?.crtcs().first().copied()
+        })
+        .ok_or_else(|| Error::Other("no CRTC available for display connector".into()))?;
 
         let card_for_gbm = PiCard {
             file: card
