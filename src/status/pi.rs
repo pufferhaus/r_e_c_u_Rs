@@ -58,13 +58,24 @@ impl PiPanelBackend {
     }
 
     /// Render `grid` to the SPI panel.
+    ///
+    /// Writes pixels in native portrait row order (dy=0..NATIVE_H, dx=0..NATIVE_W)
+    /// so each native row is written atomically from the fbtft driver's perspective.
+    /// Writing in landscape order spreads native row 0 (= landscape column 0) across
+    /// the entire flush and causes tearing on that column.
     pub fn flush(&mut self, grid: &TextGrid) {
         crate::status::render::render(grid, &mut self.fb);
         let map = &mut self.map[..];
-        for sy in 0..PANEL_H {
-            for sx in 0..PANEL_W {
+        // Inverse of CW rotation: native(dx, dy) → landscape(sx=dy, sy=NATIVE_W-1-dx)
+        for dy in 0..NATIVE_H {
+            for dx in 0..NATIVE_W {
+                let sx = dy;
+                let sy = NATIVE_W - 1 - dx;
                 let raw: u16 = swap_rb565(self.fb.pixel_at(sx, sy).into_storage());
-                write_rotated(map, sx, sy, raw.to_le_bytes());
+                let bytes = raw.to_le_bytes();
+                let off = (dy * NATIVE_W + dx) * BYTES_PER_PIXEL;
+                map[off] = bytes[0];
+                map[off + 1] = bytes[1];
             }
         }
     }
