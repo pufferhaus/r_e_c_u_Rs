@@ -1,0 +1,19 @@
+[Unit]
+Description=r_e_c_u_Rs video sampler
+After=local-fs.target
+DefaultDependencies=no
+
+[Service]
+Type=simple
+User=imi
+WorkingDirectory=/home/imi/r_e_c_u_rs
+ExecStart=/home/imi/r_e_c_u_rs/r_e_c_u_rs
+Restart=on-failure
+RestartSec=2
+StandardInput=tty
+TTYPath=/dev/tty1
+TTYReset=yes
+TTYVHangup=yes
+
+[Install]
+WantedBy=multi-user.target
