@@ -25,12 +25,17 @@ use crate::state::DisplayMode;
 #[derive(Debug, Deserialize)]
 struct KeymapFile {
     bindings: HashMap<String, String>,
+    #[serde(default)]
+    fn_bindings: HashMap<String, String>,
 }
 
 /// A loaded keymap: maps raw key-code strings to `Action` values.
+/// `fn_bindings` is a secondary layer used by the evdev source when the
+/// numpad `000` FN modifier is active.
 #[derive(Debug, Default)]
 pub struct Keymap {
     map: HashMap<String, Action>,
+    fn_map: HashMap<String, Action>,
 }
 
 impl Keymap {
@@ -52,7 +57,13 @@ impl Keymap {
                 .map_err(|_| Error::Keymap(format!("{key} = {action_str:?}")))?;
             map.insert(key, action);
         }
-        Ok(Self { map })
+        let mut fn_map = HashMap::new();
+        for (key, action_str) in file.fn_bindings {
+            let action = parse_action(&action_str)
+                .map_err(|_| Error::Keymap(format!("[fn_bindings] {key} = {action_str:?}")))?;
+            fn_map.insert(key, action);
+        }
+        Ok(Self { map, fn_map })
     }
 
     /// Look up the `Action` for a raw key-code string, e.g. `"Space"`.
@@ -63,6 +74,11 @@ impl Keymap {
     /// Iterate all (key_code, action) pairs (useful for diagnostics).
     pub fn entries(&self) -> impl Iterator<Item = (&str, &Action)> {
         self.map.iter().map(|(k, v)| (k.as_str(), v))
+    }
+
+    /// Look up the FN-layer `Action` for a key (used by evdev when `000` modifier is active).
+    pub fn lookup_fn(&self, key: &str) -> Option<Action> {
+        self.fn_map.get(key).cloned()
     }
 
     /// Mode-aware lookup. Identical to `lookup` in most cases.
