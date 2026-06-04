@@ -66,26 +66,14 @@ impl Screen for SettingsBody {
                 ScreenResult::Continue
             }
             Action::Enter => {
+                // Synthesise a CycleSetting action so the central apply.rs path
+                // performs the cycle (and enforces invariants). The dispatch
+                // loop forwards `ScreenResult::Action` to apply().
                 let id = ITEMS[self.selected].0;
-                // Cycle is done by apply(); return Continue so caller forwards
-                // to it. The menu router (Task 13) translates this into
-                // Action::CycleSetting(id).
-                ScreenResult::Push(Box::new(CycleEmit(id)))
+                ScreenResult::Action(Action::CycleSetting(id))
             }
             _ => ScreenResult::Continue,
         }
-    }
-}
-
-/// Tiny "screen" that exists only to emit one CycleSetting action and pop.
-/// Workaround for the Screen trait not having a "return-an-action" arm.
-/// The main loop should detect this and translate it; for Phase 1 we accept
-/// the indirection rather than expanding the trait surface.
-pub struct CycleEmit(pub SettingId);
-impl Screen for CycleEmit {
-    fn render(&self, _: &SharedState, _: &mut TextGrid) {}
-    fn handle(&mut self, _: Action, _: &mut SharedState) -> ScreenResult {
-        ScreenResult::Pop
     }
 }
 
