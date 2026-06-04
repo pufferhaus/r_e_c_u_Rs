@@ -43,6 +43,8 @@ pub struct ProbeResult {
     pub path: PathBuf,
     pub mtime: u64,
     pub status: CodecStatus,
+    /// Clip duration in seconds, if the discoverer reported one.
+    pub duration: Option<f64>,
 }
 
 /// Mtime-keyed cache. `(path, mtime)` is the cache key; a different mtime
@@ -169,11 +171,12 @@ fn worker_loop(rx: Receiver<ProbeRequest>, res_tx: Sender<ProbeResult>) {
         }
     };
     while let Ok(req) = rx.recv() {
-        let status = probe_one(&disc, &req.path);
+        let (status, duration) = probe_one(&disc, &req.path);
         let result = ProbeResult {
             path: req.path,
             mtime: req.mtime,
             status,
+            duration,
         };
         if res_tx.send(result).is_err() {
             return;
@@ -181,30 +184,36 @@ fn worker_loop(rx: Receiver<ProbeRequest>, res_tx: Sender<ProbeResult>) {
     }
 }
 
-fn probe_one(disc: &gst_pbutils::Discoverer, path: &Path) -> CodecStatus {
+/// Returns `(codec status, duration_seconds)`. Duration is `None` when the
+/// discoverer can't determine it (e.g. live/unsupported streams).
+fn probe_one(disc: &gst_pbutils::Discoverer, path: &Path) -> (CodecStatus, Option<f64>) {
     let uri = match url_from_path(path) {
         Some(u) => u,
-        None => return CodecStatus::Unknown,
+        None => return (CodecStatus::Unknown, None),
     };
     let info = match disc.discover_uri(&uri) {
         Ok(i) => i,
         Err(e) => {
             warn!("probe {}: {e}", path.display());
-            return CodecStatus::Unknown;
+            return (CodecStatus::Unknown, None);
         }
     };
+    let duration = info
+        .duration()
+        .map(|ct| ct.nseconds() as f64 / 1_000_000_000.0)
+        .filter(|d| *d > 0.0);
     let video_streams = info.video_streams();
     let Some(first) = video_streams.first() else {
-        return CodecStatus::Unknown;
+        return (CodecStatus::Unknown, duration);
     };
     let Some(caps) = first.caps() else {
-        return CodecStatus::Unknown;
+        return (CodecStatus::Unknown, duration);
     };
     let Some(structure) = caps.structure(0) else {
-        return CodecStatus::Unknown;
+        return (CodecStatus::Unknown, duration);
     };
     let codec = short_codec_name(structure.name().as_str());
-    CodecStatus::Supported(codec)
+    (CodecStatus::Supported(codec), duration)
 }
 
 fn url_from_path(p: &Path) -> Option<String> {

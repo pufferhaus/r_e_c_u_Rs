@@ -203,7 +203,26 @@ fn main() -> anyhow::Result<()> {
     let (probe_tx, probe_req_rx) = crossbeam_channel::unbounded::<recur::video::ProbeRequest>();
     let (probe_res_tx, probe_res_rx) = crossbeam_channel::unbounded::<recur::video::ProbeResult>();
     let _probe_worker = recur::video::ProbeWorker::spawn(probe_req_rx, probe_res_tx);
-    state.probe_tx = Some(probe_tx);
+    state.probe_tx = Some(probe_tx.clone());
+
+    // Probe every occupied bank slot up front so the sampler shows clip length
+    // and codec status without needing to browse to each file first.
+    for bank in &state.banks {
+        for slot in bank.slots.iter().flatten() {
+            if let Some(path) = slot.file_path() {
+                let mtime = std::fs::metadata(path)
+                    .and_then(|m| m.modified())
+                    .ok()
+                    .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                    .map(|d| d.as_secs())
+                    .unwrap_or(0);
+                let _ = probe_tx.send(recur::video::ProbeRequest {
+                    path: path.to_path_buf(),
+                    mtime,
+                });
+            }
+        }
+    }
 
     let shader_dir = args.shader_dir;
     let shader_watcher = recur::shader::ShaderWatcher::start(&shader_dir)
@@ -481,8 +500,24 @@ fn main() -> anyhow::Result<()> {
             }
         }
 
-        // Drain probe results into the cache.
+        // Drain probe results into the cache; also backfill clip durations into
+        // any bank slot pointing at the probed file (so the sampler shows length
+        // and the effective in/out range).
         for res in probe_res_rx.try_iter() {
+            if let Some(dur) = res.duration {
+                let mut hit = false;
+                for bank in state.banks.iter_mut() {
+                    for slot in bank.slots.iter_mut().flatten() {
+                        if slot.file_path() == Some(res.path.as_path()) {
+                            slot.length = dur;
+                            hit = true;
+                        }
+                    }
+                }
+                if hit {
+                    tracing::debug!("probed duration {:.1}s for {}", dur, res.path.display());
+                }
+            }
             let reclassified = recur::video::reclassify_for_profile(res.status, state.gles_profile);
             state
                 .probe_cache
