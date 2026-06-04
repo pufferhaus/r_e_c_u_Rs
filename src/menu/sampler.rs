@@ -23,29 +23,21 @@ impl Default for SamplerBody {
 
 impl Screen for SamplerBody {
     fn render(&self, state: &SharedState, grid: &mut TextGrid) {
+        use crate::menu::layout;
         let bank = state.current_bank();
-        // Row 5 — column header.
-        grid.write_row(
-            4,
-            &format!(
-                "{:>6} {:<17} {:>5} {:>5} {:<5}",
-                format!("{}-slot", state.bank_number),
-                "name",
-                "length",
-                "start",
-                "end",
-            ),
+        layout::left_header(
+            grid,
+            &format!("{:>4} {:<17} {:>5} {:>5} {:<5}", "slot", "name", "len", "in", "out"),
         );
         let rec = state.active_recording.as_ref();
         for (i, opt) in bank.slots.iter().enumerate() {
-            let row_idx = 5 + i; // body rows 5..14 (10 rows)
             let line = match opt {
-                None => format!("{:^6} {:<17} {:>5} {:>5} {:<5}", i, "", "", "", ""),
+                None => format!("{:^4} {:<17} {:>5} {:>5} {:<5}", i, "", "", "", ""),
                 Some(s) => fmt_slot_row_with_record_state(i, s, rec),
             };
-            grid.write_row(row_idx, &line);
+            layout::left_row(grid, i, &line, crate::status::grid::ATTR_NORMAL);
             if i == self.selected as usize {
-                grid.invert_row(row_idx);
+                layout::invert_left_row(grid, i);
             }
         }
     }
@@ -96,7 +88,7 @@ fn fmt_slot_row_with_record_state(
         }
     };
     format!(
-        "{:^6} {:<17} {:>5} {:>5} {:<5}",
+        "{:^4} {:<17} {:>5} {:>5} {:<5}",
         idx,
         truncated,
         fmt_time(s.length),

@@ -73,6 +73,30 @@ impl TextGrid {
         }
     }
 
+    /// Invert a horizontal span `[col_lo, col_hi)` of `row` (flips ATTR_INVERSE).
+    /// Used for selection highlights inside a bordered pane so the side borders
+    /// aren't clobbered. Out-of-range cols are clamped.
+    pub fn invert_span(&mut self, row: usize, col_lo: usize, col_hi: usize) {
+        if row >= self.rows {
+            return;
+        }
+        let base = row * self.cols;
+        for col in col_lo..col_hi.min(self.cols) {
+            self.cells[base + col].attr ^= ATTR_INVERSE;
+        }
+    }
+
+    /// Set `ATTR_DIM` on a horizontal span `[col_lo, col_hi)` of `row`.
+    pub fn dim_span(&mut self, row: usize, col_lo: usize, col_hi: usize) {
+        if row >= self.rows {
+            return;
+        }
+        let base = row * self.cols;
+        for col in col_lo..col_hi.min(self.cols) {
+            self.cells[base + col].attr |= ATTR_DIM;
+        }
+    }
+
     /// Set the `ATTR_DIM` bit on every cell in `row`. Idempotent.
     pub fn dim_row(&mut self, row: usize) {
         if row >= self.rows {

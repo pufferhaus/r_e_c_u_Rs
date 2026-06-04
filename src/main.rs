@@ -232,7 +232,7 @@ fn main() -> anyhow::Result<()> {
     let (detour_tx, detour_rx) =
         crossbeam_channel::unbounded::<recur::video::rack::DetourCommand>();
     rack.set_detour_channel(detour_tx);
-    let mut grid = TextGrid::new(48, 17);
+    let mut grid = TextGrid::new(80, 26);
 
     let mut root = RootScreen::new();
     // Populate SHADERS browser names from the initial library so the browser

@@ -23,20 +23,12 @@ impl Default for ShdrBnkBody {
 
 impl Screen for ShdrBnkBody {
     fn render(&self, state: &SharedState, grid: &mut TextGrid) {
+        use crate::menu::layout;
         let bank = state.current_shader_bank();
-        grid.write_row(
-            4,
-            &format!(
-                "{:>6} {:<28} {:<5}",
-                format!("{}-slot", state.shader_bank_number),
-                "shader",
-                "act"
-            ),
-        );
+        layout::left_header(grid, &format!("{:>4} {:<28} {:<5}", "slot", "shader", "act"));
         for (i, opt) in bank.slots.iter().enumerate() {
-            let row_idx = 5 + i;
             let line = match opt {
-                None => format!("{:^6} {:<28} {:<5}", i, "", ""),
+                None => format!("{:^4} {:<28} {:<5}", i, "", ""),
                 Some(s) => {
                     let active_marker = if state.shader_active_slot == Some(i as u8) {
                         "ON"
@@ -44,12 +36,12 @@ impl Screen for ShdrBnkBody {
                         ""
                     };
                     let truncated: String = s.shader.chars().take(28).collect();
-                    format!("{:^6} {:<28} {:<5}", i, truncated, active_marker)
+                    format!("{:^4} {:<28} {:<5}", i, truncated, active_marker)
                 }
             };
-            grid.write_row(row_idx, &line);
+            layout::left_row(grid, i, &line, crate::status::grid::ATTR_NORMAL);
             if i == self.selected as usize {
-                grid.invert_row(row_idx);
+                layout::invert_left_row(grid, i);
             }
         }
     }
