@@ -57,6 +57,6 @@ All TOML state written atomically (`write tmp → rename`). `banks.toml` accepts
 
 ## Roadmap
 
-Active phase: **Phase 5 — Pi inputs** (GPIO matrix via `rppal`, USB MIDI via `midir`, ADC knobs over I2C — all behind `pi-base` feature). See `.docs/ROADMAP.md` for full execution order.
+Active phase: **Phase 5 — Pi inputs** (GPIO matrix via `rppal`, USB MIDI via `midir`, ADC knobs over I2C — all behind `pi-base` feature). Track execution order and phasing in **liste** (`liste next`); the old `.docs/ROADMAP.md` method is retired.
 
 Full design specs per phase: `docs/superpowers/specs/`.
