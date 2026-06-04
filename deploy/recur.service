@@ -7,13 +7,15 @@ DefaultDependencies=no
 Type=simple
 User=imi
 WorkingDirectory=/home/imi/r_e_c_u_rs
-# Force the HDMI connector "on" before launch. Cheap monitors / capture cards /
-# KVMs that don't assert hot-plug or provide EDID leave the connector reporting
-# "disconnected" with 0 modes, so KMS gives the app no modes. Forcing status to
-# "on" makes the vc4 driver expose standard fallback modes. The `+` prefix runs
-# this as root even though the service runs as `imi`. `-` ignores failure (e.g.
-# when an HDMI display is properly detected and this path doesn't exist yet).
-ExecStartPre=+/bin/sh -c 'echo on > /sys/class/drm/card1-HDMI-A-1/status 2>/dev/null; echo on > /sys/class/drm/card1-HDMI-A-2/status 2>/dev/null; true'
+# Privileged pre-start (the `+` prefix runs as root even though User=imi):
+#  1. Unbind the framebuffer console (fbcon) so the kernel console / getty login
+#     prompt stops drawing on the SPI LCD (fb0). Without this, fbcon and the app
+#     fight over the same framebuffer — the login prompt overwrites the grid and
+#     the contention shows as flicker. The app then owns the LCD exclusively.
+#  2. Force the HDMI connector "on". Cheap monitors / capture cards / KVMs that
+#     don't assert hot-plug or provide EDID report "disconnected" with 0 modes,
+#     so KMS gives the app no modes; forcing "on" exposes standard fallback modes.
+ExecStartPre=+/bin/sh -c 'for d in /sys/class/vtconsole/vtcon*; do grep -q "frame buffer device" "$d/name" && echo 0 > "$d/bind"; done; echo on > /sys/class/drm/card1-HDMI-A-1/status 2>/dev/null; echo on > /sys/class/drm/card1-HDMI-A-2/status 2>/dev/null; true'
 ExecStart=/home/imi/r_e_c_u_rs/r_e_c_u_rs
 Restart=on-failure
 RestartSec=5
