@@ -25,30 +25,30 @@ impl ShadersBody {
 
 impl Screen for ShadersBody {
     fn render(&self, _state: &SharedState, grid: &mut TextGrid) {
-        grid.write_row(4, "shader                              gles");
-        for view_i in 0..10 {
-            let row_idx = 5 + view_i;
+        use crate::menu::layout;
+        layout::left_header(grid, "shader");
+        // Reserve the last list row for the count footer.
+        let list_rows = layout::BODY_LIST_ROWS - 1;
+        for view_i in 0..list_rows {
             match self.names.get(view_i) {
-                None => grid.write_row(row_idx, ""),
+                None => {
+                    layout::left_row(grid, view_i, "", crate::status::grid::ATTR_NORMAL);
+                }
                 Some(name) => {
-                    let truncated: String = name.chars().take(38).collect();
-                    grid.write_row(row_idx, &format!("{:<38} {:<5}", truncated, ""));
+                    let truncated: String = name.chars().take(layout::PANE_LW).collect();
+                    layout::left_row(grid, view_i, &truncated, crate::status::grid::ATTR_NORMAL);
                     if view_i == self.selected {
-                        grid.invert_row(row_idx);
+                        layout::invert_left_row(grid, view_i);
                     }
                 }
             }
         }
         let footer = if self.filtered > 0 {
-            format!(
-                "{} shown, {} hidden (pi5-only)",
-                self.names.len(),
-                self.filtered
-            )
+            format!("{} shown, {} hidden (pi5-only)", self.names.len(), self.filtered)
         } else {
             format!("{} shaders", self.names.len())
         };
-        grid.write_row(14, &footer);
+        layout::left_row(grid, list_rows, &footer, crate::status::grid::ATTR_DIM);
     }
 
     fn handle(&mut self, action: Action, state: &mut SharedState) -> ScreenResult {
@@ -85,12 +85,13 @@ mod tests {
 
     #[test]
     fn footer_shows_filtered_count_when_nonzero() {
+        use crate::menu::layout;
         let body = ShadersBody::new(vec!["a".into()], 3);
-        let mut grid = crate::status::grid::TextGrid::new(48, 17);
+        let mut grid = crate::status::grid::TextGrid::new(layout::COLS, layout::ROWS);
         let s = SharedState::new();
         body.render(&s, &mut grid);
-        // Row 14 should contain "hidden".
-        let row14: String = (0..48).map(|c| grid.at(14, c).ch).collect();
-        assert!(row14.contains("hidden"));
+        // Footer occupies the last list row.
+        let row = grid.row_text(layout::ROW_BODY0 + 1 + (layout::BODY_LIST_ROWS - 1));
+        assert!(row.contains("hidden"), "got: {row}");
     }
 }

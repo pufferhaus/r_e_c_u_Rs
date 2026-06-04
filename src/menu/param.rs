@@ -23,27 +23,24 @@ impl Default for ParamBody {
 
 impl Screen for ParamBody {
     fn render(&self, state: &SharedState, grid: &mut TextGrid) {
-        grid.write_row(4, "param  name              value");
+        use crate::menu::layout;
+        let n = crate::status::grid::ATTR_NORMAL;
+        layout::clear_left_pane(grid);
+        layout::left_header(grid, "param  name              value");
         let Some(active) = state.shader_active_slot else {
-            grid.write_row(6, "  (no shader slot active)");
+            layout::left_row(grid, 1, "  (no shader slot active)", n);
             return;
         };
         let bank = state.current_shader_bank();
         let Some(Some(slot)) = bank.slots.get(active as usize) else {
-            grid.write_row(6, "  (active slot empty)");
+            layout::left_row(grid, 1, "  (active slot empty)", n);
             return;
         };
         for i in 0..8 {
-            let row = 5 + i;
-            let line = format!(
-                "{:^5}  {:<16}  {:>+.3}",
-                i,
-                format!("u_param{i}"),
-                slot.params[i]
-            );
-            grid.write_row(row, &line);
+            let line = format!("{:^5}  {:<16}  {:>+.3}", i, format!("u_param{i}"), slot.params[i]);
+            layout::left_row(grid, i, &line, n);
             if i as u8 == state.shader_focus {
-                grid.invert_row(row);
+                layout::invert_left_row(grid, i);
             }
         }
     }

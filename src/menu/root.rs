@@ -1,13 +1,13 @@
-//! Always-on chrome screen. Renders the title, transport banner, status row,
-//! mode tabs, column headers, and footer. Delegates the body region to one
-//! of BrowserBody / SamplerBody / SettingsBody / ShadersBody / ShdrBnkBody.
+//! Always-on chrome screen. Draws the bordered 80×26 frame (top bar, transport,
+//! NOW divider, right-pane mode menu, hotkey bar) via `layout`, then delegates
+//! the left pane to the active mode body.
 
 use crate::action::Action;
-use crate::render::shader_assembly::GlesProfile;
 use crate::state::{ControlMode, DisplayMode, SharedState};
 use crate::status::grid::TextGrid;
 use crate::ui::{Screen, ScreenResult};
 
+use super::layout;
 use super::{
     browser::BrowserBody, frames::FramesBody, param::ParamBody, sampler::SamplerBody,
     settings::SettingsBody, shaders::ShadersBody, shdr_bnk::ShdrBnkBody,
@@ -43,52 +43,7 @@ impl RootScreen {
     }
 
     fn render_chrome(&self, state: &SharedState, grid: &mut TextGrid) {
-        // Row 1 — title
-        let title = match state.display_mode {
-            DisplayMode::Shaders | DisplayMode::ShdrBnk => {
-                "============== c_o_n_j_u_r ============="
-            }
-            DisplayMode::Frames => "============== d_e_t_o_u_r =============",
-            _ => "============== r_e_c_u_r ===============",
-        };
-        grid.write_row(0, title);
-
-        // Row 2 — transport banner (stub when no player loaded)
-        grid.write_row(1, " 00:00 [-----------------------] 00:00");
-
-        // Row 3 — status: NOW [b-s] STATUS    NEXT [b-s] STATUS
-        grid.write_row(2, "NOW [0-0] -                NEXT [0-0] -");
-
-        // Row 4 — mode tabs
-        grid.write_row(3, &body_title(state));
-
-        // Row 16 — footer (status / message)
-        let mut footer = if let Some(err) = state.last_error.as_deref() {
-            format!("ERR: {}", err.chars().take(40).collect::<String>())
-        } else if state.function_on {
-            "               < FUNCTION KEY ON >".to_string()
-        } else {
-            format!("CONTROL: {:?}", state.control_mode)
-        };
-        if state.gles_profile == GlesProfile::V100 {
-            footer.push_str(" [profile: pi3]");
-        }
-        // Phase 4b — recording indicator.
-        if let Some(rec) = state.active_recording.as_ref() {
-            use crate::capture::recording::RecState;
-            let suffix = match rec.state {
-                RecState::Recording => {
-                    let elapsed = rec.started_at.elapsed();
-                    let secs = elapsed.as_secs();
-                    format!(" <REC> {:02}:{:02}", secs / 60, secs % 60)
-                }
-                RecState::Finalizing => " <SAV>".to_string(),
-            };
-            // Right-trim the footer to make room.
-            let max_w = 40usize.saturating_sub(suffix.chars().count());
-            footer = footer.chars().take(max_w).collect::<String>() + &suffix;
-        }
-        grid.write_row(15, &footer);
+        layout::draw_chrome(state, grid);
     }
 }
 
@@ -129,62 +84,32 @@ impl Screen for RootScreen {
     }
 }
 
-fn body_title(state: &SharedState) -> String {
-    let abbrev = |m: DisplayMode| match m {
-        DisplayMode::Browser => "br",
-        DisplayMode::Sampler => "sa",
-        DisplayMode::Settings => "se",
-        DisplayMode::Shaders => "sh",
-        DisplayMode::ShdrBnk => "sb",
-        DisplayMode::Frames => "fr",
-    };
-    let all = [
-        DisplayMode::Browser,
-        DisplayMode::Settings,
-        DisplayMode::Sampler,
-        DisplayMode::Shaders,
-        DisplayMode::ShdrBnk,
-        DisplayMode::Frames,
-    ];
-    let mut parts = Vec::new();
-    for m in all {
-        if m == state.display_mode {
-            parts.push(format!("[{:_<8}]", format!("{:?}", m).to_lowercase()));
-        } else {
-            parts.push(format!("<{}>", abbrev(m)));
-        }
-    }
-    let s = parts.join("");
-    format!("---{}---", &s[..s.len().min(42)])
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::menu::layout;
     use crate::status::grid::ATTR_INVERSE;
 
-    #[test]
-    fn body_title_brackets_current_mode() {
-        let mut st = SharedState::new();
-        st.display_mode = DisplayMode::Sampler;
-        let t = body_title(&st);
-        assert!(t.contains("[sampler"));
+    fn new_grid() -> TextGrid {
+        TextGrid::new(layout::COLS, layout::ROWS)
+    }
+
+    /// Grid row index of left-pane list row `i`.
+    fn list_row(i: usize) -> usize {
+        layout::ROW_BODY0 + 1 + i
     }
 
     #[test]
-    fn footer_shows_gles_profile_indicator_when_v100() {
+    fn hotkeys_show_gles_profile_indicator_when_v100() {
         use crate::render::shader_assembly::GlesProfile;
         let mut st = SharedState::new();
         st.gles_profile = GlesProfile::V100;
         st.display_mode = DisplayMode::Sampler;
         let root = RootScreen::new();
-        let mut grid = crate::status::grid::TextGrid::new(48, 17);
+        let mut grid = new_grid();
         root.render(&st, &mut grid);
-        let row15: String = (0..48).map(|c| grid.at(15, c).ch).collect();
-        assert!(
-            row15.contains("profile: pi3") || row15.contains("v100"),
-            "footer should call out pi3 compat mode, got: {row15}"
-        );
+        let row = grid.row_text(layout::ROW_HOTKEYS);
+        assert!(row.contains("pi3"), "hotkey bar should call out pi3, got: {row}");
     }
 
     #[test]
@@ -197,15 +122,15 @@ mod tests {
             params: [0.0; 8],
         });
         let root = RootScreen::new();
-        let mut grid = crate::status::grid::TextGrid::new(48, 17);
+        let mut grid = new_grid();
         root.render(&st, &mut grid);
-        // Row 7 (slot 2) should contain the shader name.
-        let row7: String = (0..48).map(|c| grid.at(7, c).ch).collect();
-        assert!(row7.contains("kaleidoscope"), "got: {row7}");
+        // Slot 2 → left-pane list row 2.
+        let row = grid.row_text(list_row(2));
+        assert!(row.contains("kaleidoscope"), "got: {row}");
     }
 
     #[test]
-    fn footer_shows_rec_when_active_recording() {
+    fn hotkeys_show_rec_when_active_recording() {
         use crate::capture::recording::{ActiveRecording, RecState};
         use std::time::Instant;
         let mut s = SharedState::new();
@@ -217,14 +142,14 @@ mod tests {
             last_disk_check: Instant::now(),
         });
         let r = RootScreen::new();
-        let mut grid = TextGrid::new(48, 17);
+        let mut grid = new_grid();
         r.render_chrome(&s, &mut grid);
-        let footer = grid.row_text(15);
-        assert!(footer.contains("<REC>"), "footer: {footer:?}");
+        let bar = grid.row_text(layout::ROW_HOTKEYS);
+        assert!(bar.contains("<REC>"), "hotkey bar: {bar:?}");
     }
 
     #[test]
-    fn footer_shows_sav_when_finalizing() {
+    fn hotkeys_show_sav_when_finalizing() {
         use crate::capture::recording::{ActiveRecording, RecState};
         use std::time::Instant;
         let mut s = SharedState::new();
@@ -236,10 +161,25 @@ mod tests {
             last_disk_check: Instant::now(),
         });
         let r = RootScreen::new();
-        let mut grid = TextGrid::new(48, 17);
+        let mut grid = new_grid();
         r.render_chrome(&s, &mut grid);
-        let footer = grid.row_text(15);
-        assert!(footer.contains("<SAV>"), "footer: {footer:?}");
+        let bar = grid.row_text(layout::ROW_HOTKEYS);
+        assert!(bar.contains("<SAV>"), "hotkey bar: {bar:?}");
+    }
+
+    #[test]
+    fn frame_has_corners_and_borders() {
+        let st = SharedState::new();
+        let root = RootScreen::new();
+        let mut grid = new_grid();
+        root.render(&st, &mut grid);
+        assert_eq!(grid.at(0, 0).ch, '┌');
+        assert_eq!(grid.at(0, layout::COLS - 1).ch, '┐');
+        assert_eq!(grid.at(layout::ROW_BOTTOM, 0).ch, '└');
+        assert_eq!(grid.at(layout::ROW_BOTTOM, layout::COLS - 1).ch, '┘');
+        // Side borders present on a mid row.
+        assert_eq!(grid.at(5, 0).ch, '│');
+        assert_eq!(grid.at(5, layout::COLS - 1).ch, '│');
     }
 
     #[test]
@@ -252,29 +192,57 @@ mod tests {
         st.paths_to_browser = vec![tmp.path().to_path_buf()];
         let mut root = RootScreen::new();
 
-        // Before NavDown: selected is 0, so row 5 (body row 0) is inverted.
-        let mut grid = TextGrid::new(48, 17);
+        // Selection highlight lands on interior cols (PANE_L0), not the border.
+        let col = layout::PANE_L0;
+
+        // Before NavDown: selected 0 → list row 0 inverted.
+        let mut grid = new_grid();
         root.render(&st, &mut grid);
         assert!(
-            grid.at(5, 0).attr & ATTR_INVERSE != 0,
-            "row 5 should be inverted before nav"
+            grid.at(list_row(0), col).attr & ATTR_INVERSE != 0,
+            "list row 0 should be inverted before nav"
         );
         assert!(
-            grid.at(6, 0).attr & ATTR_INVERSE == 0,
-            "row 6 should not be inverted before nav"
+            grid.at(list_row(1), col).attr & ATTR_INVERSE == 0,
+            "list row 1 should not be inverted before nav"
         );
 
-        // NavDown advances selected to 1; now row 6 should be inverted.
+        // NavDown → selected 1 → list row 1 inverted.
         root.handle(Action::NavDown, &mut st);
-        let mut grid2 = TextGrid::new(48, 17);
+        let mut grid2 = new_grid();
         root.render(&st, &mut grid2);
         assert!(
-            grid2.at(5, 0).attr & ATTR_INVERSE == 0,
-            "row 5 should not be inverted after nav"
+            grid2.at(list_row(0), col).attr & ATTR_INVERSE == 0,
+            "list row 0 should not be inverted after nav"
         );
         assert!(
-            grid2.at(6, 0).attr & ATTR_INVERSE != 0,
-            "row 6 should be inverted after nav"
+            grid2.at(list_row(1), col).attr & ATTR_INVERSE != 0,
+            "list row 1 should be inverted after nav"
         );
+    }
+
+    /// Visual check: prints the sampler screen so the layout can be eyeballed
+    /// with `cargo test dump_sampler_layout -- --nocapture`.
+    #[test]
+    fn dump_sampler_layout() {
+        use crate::state::{Slot, SourceKind};
+        let mut st = SharedState::new();
+        st.display_mode = DisplayMode::Sampler;
+        st.banks[0].slots[0] = Some(Slot {
+            source: SourceKind::File("/clips/cityscape.mp4".into()),
+            name: "cityscape.mp4".into(),
+            start: 0.0,
+            end: 4.2,
+            length: 4.2,
+            rate: 1.0,
+        });
+        let root = RootScreen::new();
+        let mut grid = new_grid();
+        root.render(&st, &mut grid);
+        println!("\n+{}+", "-".repeat(layout::COLS));
+        for r in 0..layout::ROWS {
+            println!("|{}|", grid.row_text(r));
+        }
+        println!("+{}+", "-".repeat(layout::COLS));
     }
 }

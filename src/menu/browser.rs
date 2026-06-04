@@ -15,7 +15,7 @@ pub struct BrowserBody {
     top: usize,
 }
 
-const VIEW_ROWS: usize = 10;
+const VIEW_ROWS: usize = crate::menu::layout::BODY_LIST_ROWS;
 
 impl BrowserBody {
     pub fn new() -> Self {
@@ -74,19 +74,19 @@ impl BrowserBody {
 
 impl Screen for BrowserBody {
     fn render(&self, state: &SharedState, grid: &mut TextGrid) {
+        use crate::menu::layout;
         let rows = self.rows(state);
-        grid.write_row(4, "path                                slot");
+        layout::left_header(grid, &format!("{:<34} {:<5}", "path", "slot"));
         for view_i in 0..VIEW_ROWS {
-            let row_idx = 5 + view_i;
             let abs = self.top + view_i;
             if abs >= rows.len() {
-                grid.write_row(row_idx, "");
+                layout::left_row(grid, view_i, "", crate::status::grid::ATTR_NORMAL);
                 continue;
             }
             let row = &rows[abs];
             let slot = slot_label_for(state, &row.path)
                 .unwrap_or_else(|| if row.is_file { "-" } else { "x" }.to_string());
-            let truncated: String = row.display.chars().take(38).collect();
+            let truncated: String = row.display.chars().take(34).collect();
             let cached = state.probe_cache.get(&row.probe_key);
             // Probe-status marker appended after the slot column.
             let marker = match &cached {
@@ -94,12 +94,17 @@ impl Screen for BrowserBody {
                 Some(CodecStatus::Unsupported(_)) => " [X]",
                 _ => "",
             };
-            grid.write_row(row_idx, &format!("{:<38} {:<5}{}", truncated, slot, marker));
+            layout::left_row(
+                grid,
+                view_i,
+                &format!("{:<34} {:<5}{}", truncated, slot, marker),
+                crate::status::grid::ATTR_NORMAL,
+            );
             if matches!(cached, Some(CodecStatus::Unsupported(_))) {
-                grid.dim_row(row_idx);
+                layout::dim_left_row(grid, view_i);
             }
             if abs == self.selected {
-                grid.invert_row(row_idx);
+                layout::invert_left_row(grid, view_i);
             }
         }
     }
@@ -195,25 +200,25 @@ mod tests {
         st.probe_cache
             .insert(&canon, 0, CodecStatus::Unsupported("hevc".into()));
 
+        use crate::menu::layout;
         let b = BrowserBody::new();
-        let mut grid = crate::status::grid::TextGrid::new(48, 17);
+        let mut grid = crate::status::grid::TextGrid::new(layout::COLS, layout::ROWS);
         b.render(&st, &mut grid);
 
-        // Row 5 is the first body row. The unsupported file should be dimmed.
-        let row5_attr = grid.at(5, 0).attr;
+        // List row 0 is the first body row. The unsupported file should be dimmed.
+        let r = layout::ROW_BODY0 + 1;
+        let attr = grid.at(r, layout::PANE_L0).attr;
         assert!(
-            row5_attr & crate::status::grid::ATTR_DIM != 0,
-            "row 5 should have ATTR_DIM (got attr={row5_attr:#04x})"
+            attr & crate::status::grid::ATTR_DIM != 0,
+            "list row 0 should have ATTR_DIM (got attr={attr:#04x})"
         );
-        let row5: String = (0..48).map(|c| grid.at(5, c).ch).collect();
-        assert!(
-            row5.contains("[X]"),
-            "row should contain [X] marker, got: {row5:?}"
-        );
+        let row = grid.row_text(r);
+        assert!(row.contains("[X]"), "row should contain [X] marker, got: {row:?}");
     }
 
     #[test]
     fn render_shows_pending_glyph_during_probe() {
+        use crate::menu::layout;
         use crate::video::CodecStatus;
         let tmp = tempfile::tempdir().unwrap();
         let f = tmp.path().join("a.mp4");
@@ -225,13 +230,13 @@ mod tests {
         st.probe_cache.insert(&canon, 0, CodecStatus::Pending);
 
         let b = BrowserBody::new();
-        let mut grid = crate::status::grid::TextGrid::new(48, 17);
+        let mut grid = crate::status::grid::TextGrid::new(layout::COLS, layout::ROWS);
         b.render(&st, &mut grid);
 
-        let row5: String = (0..48).map(|c| grid.at(5, c).ch).collect();
+        let row = grid.row_text(layout::ROW_BODY0 + 1);
         assert!(
-            row5.contains("[..]") || row5.contains("[…]"),
-            "expected pending marker, got: {row5:?}"
+            row.contains("[..]") || row.contains("[…]"),
+            "expected pending marker, got: {row:?}"
         );
     }
 

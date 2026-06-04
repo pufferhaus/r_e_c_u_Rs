@@ -1,6 +1,6 @@
 //! CPU-side renderer: TextGrid → 480×320 RGB565 framebuffer for SPI panel.
 
-use embedded_graphics::mono_font::ascii::FONT_9X18;
+use embedded_graphics::mono_font::ascii::FONT_6X12;
 use embedded_graphics::mono_font::MonoTextStyle;
 use embedded_graphics::pixelcolor::Rgb565;
 use embedded_graphics::prelude::*;
@@ -10,8 +10,10 @@ use crate::status::grid::{TextGrid, ATTR_BRIGHT, ATTR_DIM, ATTR_INVERSE};
 
 pub const PANEL_W: usize = 480;
 pub const PANEL_H: usize = 320;
-pub const CELL_W: usize = 9;
-pub const CELL_H: usize = 18;
+// 6x12 cells → 80 cols × 26 rows fills 480×312 of the 480×320 panel,
+// matching the bordered control-grid layout.
+pub const CELL_W: usize = 6;
+pub const CELL_H: usize = 12;
 
 const FG_NORMAL: Rgb565 = Rgb565::new(31, 36, 0);
 const FG_BRIGHT: Rgb565 = Rgb565::new(31, 48, 0);
@@ -127,7 +129,7 @@ pub fn render(grid: &TextGrid, fb: &mut Fb) {
             if ch == ' ' {
                 continue;
             }
-            let style = MonoTextStyle::new(&FONT_9X18, fg);
+            let style = MonoTextStyle::new(&FONT_6X12, fg);
             let _ = Text::with_text_style(
                 &ch.to_string(),
                 Point::new(x as i32, y as i32),

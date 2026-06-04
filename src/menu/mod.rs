@@ -1,5 +1,6 @@
 pub mod browser;
 pub mod frames;
+pub mod layout;
 pub mod param;
 pub mod root;
 pub mod sampler;

@@ -39,13 +39,18 @@ impl Default for SettingsBody {
 
 impl Screen for SettingsBody {
     fn render(&self, state: &SharedState, grid: &mut TextGrid) {
-        grid.write_row(4, &format!("{:<23} {:<22}", "SETTING", "VALUE"));
-        for (i, (id, name)) in ITEMS.iter().enumerate().take(10) {
-            let row = 5 + i;
+        use crate::menu::layout;
+        layout::left_header(grid, &format!("{:<23} {:<22}", "SETTING", "VALUE"));
+        for (i, (id, name)) in ITEMS.iter().enumerate() {
             let value = value_for(state, *id);
-            grid.write_row(row, &format!("{:<23} {:<22}", name, value));
+            layout::left_row(
+                grid,
+                i,
+                &format!("{:<23} {:<22}", name, value),
+                crate::status::grid::ATTR_NORMAL,
+            );
             if i == self.selected {
-                grid.invert_row(row);
+                layout::invert_left_row(grid, i);
             }
         }
     }
