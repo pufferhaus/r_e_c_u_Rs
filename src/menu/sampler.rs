@@ -102,13 +102,18 @@ fn fmt_slot_row_with_record_state(
             format!("{}{}", prefix, s.name).chars().take(17).collect()
         }
     };
+    // Show the *effective* loop range: an unset in (-1) is the clip start (0),
+    // an unset out (-1) is the clip end (its length). So the columns are always
+    // meaningful once the duration is probed, even with no custom loop set.
+    let loop_in = if s.start >= 0.0 { s.start } else { 0.0 };
+    let loop_out = if s.end >= 0.0 { s.end } else { s.length };
     format!(
         "{:^3} {:<17} {:>5} {:>5} {:<5}",
         idx,
         truncated,
         fmt_time(s.length),
-        fmt_time(s.start),
-        fmt_time(s.end),
+        fmt_time(loop_in),
+        fmt_time(loop_out),
     )
 }
 
