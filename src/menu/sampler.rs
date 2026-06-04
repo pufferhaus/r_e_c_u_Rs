@@ -24,6 +24,7 @@ impl Default for SamplerBody {
 impl Screen for SamplerBody {
     fn render(&self, state: &SharedState, grid: &mut TextGrid) {
         use crate::menu::layout;
+        use crate::status::grid::{ATTR_BRIGHT, ATTR_NORMAL};
         let bank = state.current_bank();
         layout::left_header(
             grid,
@@ -31,12 +32,25 @@ impl Screen for SamplerBody {
         );
         let rec = state.active_recording.as_ref();
         for (i, opt) in bank.slots.iter().enumerate() {
-            let line = match opt {
-                None => format!("{:^4} {:<17} {:>5} {:>5} {:<5}", i, "", "", "", ""),
+            let is_playing = state.now_playing == Some((state.bank_number, i as u8));
+            // `>` marks the playing slot; the rest of the slot label is 3-wide so
+            // the total slot column still lines up under the header's 4-wide field.
+            let marker = if is_playing { '>' } else { ' ' };
+            let body = match opt {
+                None => format!("{:^3} {:<17} {:>5} {:>5} {:<5}", i, "", "", "", ""),
                 Some(s) => fmt_slot_row_with_record_state(i, s, rec),
             };
-            layout::left_row(grid, i, &line, crate::status::grid::ATTR_NORMAL);
-            if i == self.selected as usize {
+            let attr = if is_playing { ATTR_BRIGHT } else { ATTR_NORMAL };
+            layout::left_row(grid, i, &format!("{marker}{body}"), attr);
+
+            // Trigger flash: blink the playing row on/off for ~0.6 s after a press.
+            let flash_on =
+                is_playing && state.trigger_flash > 0 && (state.trigger_flash / 3) % 2 == 1;
+            if flash_on {
+                layout::invert_left_row(grid, i);
+            } else if i == self.selected as usize && !is_playing {
+                // Cursor highlight (suppressed on the playing row, which already
+                // stands out as bright + marked).
                 layout::invert_left_row(grid, i);
             }
         }
@@ -88,7 +102,7 @@ fn fmt_slot_row_with_record_state(
         }
     };
     format!(
-        "{:^4} {:<17} {:>5} {:>5} {:<5}",
+        "{:^3} {:<17} {:>5} {:>5} {:<5}",
         idx,
         truncated,
         fmt_time(s.length),

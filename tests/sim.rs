@@ -217,6 +217,14 @@ fn simulate_full_ui_walkthrough() {
         "Digit4 triggered slot 4 on the rack",
         sim.rack.triggers.iter().any(|(_, s, n)| *s == 4 && n == "demo.mp4"),
     );
+    sim.check("now_playing set to (bank 0, slot 4)", sim.state.now_playing == Some((0, 4)));
+    sim.check("trigger flash armed", sim.state.trigger_flash > 0);
+    let marker_cell = sim.render().at(Sim::list_row(4), layout::PANE_L0).ch;
+    sim.check("playing row shows '>' marker", marker_cell == '>');
+    sim.check(
+        "loops by default (on_finish=Repeat)",
+        matches!(sim.state.sampler.on_finish, recur::state::OnFinish::Repeat),
+    );
 
     // ---- 5. Function (map) toggle ----
     println!("\n[5] FUNCTION key toggle");

@@ -236,6 +236,7 @@ mod tests {
             length: 4.2,
             rate: 1.0,
         });
+        st.now_playing = Some((0, 0)); // show the playing marker
         let root = RootScreen::new();
         let mut grid = new_grid();
         root.render(&st, &mut grid);

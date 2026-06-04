@@ -371,6 +371,9 @@ fn main() -> anyhow::Result<()> {
             }
         }
 
+        // Count down the sampler trigger flash (one tick per frame).
+        state.trigger_flash = state.trigger_flash.saturating_sub(1);
+
         // 2. Rack tick
         rack.tick();
 
