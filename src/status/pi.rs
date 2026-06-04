@@ -34,6 +34,14 @@ pub struct PiPanelBackend {
     _file: File,
     map: MmapMut,
     fb: Fb,
+    /// Staging buffer in native portrait layout (RGB565 LE). Full frame is built
+    /// here, then committed to mmap in one copy_from_slice to minimise the window
+    /// in which fbtft DMA can read a partially-updated framebuffer.
+    staging: Vec<u8>,
+    /// Cell snapshot from the last flush. We skip re-rendering and re-committing
+    /// when the grid hasn't changed — eliminates mmap writes on static frames
+    /// and removes tearing entirely for idle/static displays.
+    prev_cells: Vec<crate::status::grid::Cell>,
 }
 
 impl PiPanelBackend {
@@ -54,18 +62,29 @@ impl PiPanelBackend {
             _file: file,
             map,
             fb: Fb::new(),
+            staging: vec![0u8; NATIVE_W * NATIVE_H * BYTES_PER_PIXEL],
+            prev_cells: Vec::new(),
         })
     }
 
-    /// Render `grid` to the SPI panel.
+    /// Render `grid` to the SPI panel — skips the mmap write if the grid
+    /// is unchanged since the last flush (eliminates tearing on static frames).
     ///
-    /// Writes pixels in native portrait row order (dy=0..NATIVE_H, dx=0..NATIVE_W)
-    /// so each native row is written atomically from the fbtft driver's perspective.
-    /// Writing in landscape order spreads native row 0 (= landscape column 0) across
-    /// the entire flush and causes tearing on that column.
+    /// When the grid does change: builds the full rotated frame in `self.staging`,
+    /// then copies it to the mmap in one `copy_from_slice` call. The bulk copy is
+    /// ~1 ms vs ~30 ms for pixel-by-pixel writes, closing the window in which the
+    /// fbtft driver can read a partially-updated framebuffer and produce
+    /// column tearing.
     pub fn flush(&mut self, grid: &TextGrid) {
+        // Skip if grid content is unchanged — no mmap write, no DMA race.
+        if self.prev_cells == grid.cells() {
+            return;
+        }
+        self.prev_cells.clear();
+        self.prev_cells.extend_from_slice(grid.cells());
+
         crate::status::render::render(grid, &mut self.fb);
-        let map = &mut self.map[..];
+        // Build rotated frame in staging buffer.
         // Inverse of CW rotation: native(dx, dy) → landscape(sx=dy, sy=NATIVE_W-1-dx)
         for dy in 0..NATIVE_H {
             for dx in 0..NATIVE_W {
@@ -74,10 +93,12 @@ impl PiPanelBackend {
                 let raw: u16 = swap_rb565(self.fb.pixel_at(sx, sy).into_storage());
                 let bytes = raw.to_le_bytes();
                 let off = (dy * NATIVE_W + dx) * BYTES_PER_PIXEL;
-                map[off] = bytes[0];
-                map[off + 1] = bytes[1];
+                self.staging[off] = bytes[0];
+                self.staging[off + 1] = bytes[1];
             }
         }
+        // Single bulk transfer to mmap — minimises tearing window.
+        self.map.copy_from_slice(&self.staging);
     }
 }
 
