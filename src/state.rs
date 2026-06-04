@@ -287,6 +287,9 @@ pub struct SharedState {
     pub frames_stats_used_mb: u64,
     pub frames_stats_budget_mb: u64,
     pub frames_stats_fps: u32,
+    /// Measured render rate (rolling ~1s window), updated by main.rs. 0 until
+    /// the first window closes.
+    pub measured_fps: f32,
 
     // Phase 4b — captur (recording)
     pub active_recording: Option<crate::capture::recording::ActiveRecording>,
@@ -322,6 +325,7 @@ impl SharedState {
             frames_stats_used_mb: 0,
             frames_stats_budget_mb: 0,
             frames_stats_fps: 30,
+            measured_fps: 0.0,
             active_recording: None,
         }
     }

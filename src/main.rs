@@ -364,6 +364,9 @@ fn main() -> anyhow::Result<()> {
     let mut frame_count: u64 = 0;
     let mut t_next = Instant::now();
     let mut feedback_buf: Vec<u8> = Vec::new();
+    // Rolling measured-fps window (closes ~once per second).
+    let mut fps_window_start = Instant::now();
+    let mut fps_window_frames: u32 = 0;
 
     loop {
         // 1. Drain input → Actions
@@ -571,6 +574,14 @@ fn main() -> anyhow::Result<()> {
             ((ring.count() * ring.bytes_per_frame()) / (1024 * 1024)) as u64;
         state.frames_stats_budget_mb = (detour_budget_bytes / (1024 * 1024)) as u64;
         state.frames_stats_fps = cfg.render.fps;
+        // Measured render rate: count frames over a ~1s window.
+        fps_window_frames += 1;
+        let fps_elapsed = fps_window_start.elapsed();
+        if fps_elapsed >= Duration::from_secs(1) {
+            state.measured_fps = fps_window_frames as f32 / fps_elapsed.as_secs_f32();
+            fps_window_frames = 0;
+            fps_window_start = Instant::now();
+        }
 
         render.begin_frame();
         let strobe_show = {

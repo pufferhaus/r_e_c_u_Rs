@@ -54,6 +54,7 @@ pub fn draw_chrome(state: &SharedState, grid: &mut TextGrid) {
     draw_mode_menu(state, grid);
     draw_divider_bot(grid);
     draw_hotkeys(state, grid);
+    draw_stat_line(state, grid);
 }
 
 fn dim(ch: char) -> Cell {
@@ -183,6 +184,68 @@ fn draw_hotkeys(state: &SharedState, grid: &mut TextGrid) {
 
     let hints: String = hints.chars().take(COLS - 4).collect();
     grid.write(ROW_HOTKEYS, PANE_L0, ATTR_NORMAL, &hints);
+}
+
+/// Row 25 (bottom border): embed a compact live stat strip — operational
+/// state on the left, runtime telemetry on the right — over the border dashes,
+/// corners preserved. Mirrors mandleROT's status strip.
+fn draw_stat_line(state: &SharedState, grid: &mut TextGrid) {
+    let mode = match state.display_mode {
+        DisplayMode::Sampler => "SMP",
+        DisplayMode::Browser => "BRW",
+        DisplayMode::Settings => "SET",
+        DisplayMode::Shaders => "SHD",
+        DisplayMode::ShdrBnk => "SBK",
+        DisplayMode::Frames => "DET",
+    };
+    let mut left = format!(" {mode}");
+
+    if let Some((b, s)) = state.now_playing {
+        let slot = state
+            .banks
+            .get(b as usize)
+            .and_then(|bank| bank.slots.get(s as usize))
+            .and_then(|o| o.as_ref());
+        let name: String = slot
+            .map(|sl| sl.name.chars().take(14).collect())
+            .unwrap_or_else(|| "-".to_string());
+        left.push_str(&format!(" >{}-{} {}", bank_letter(b), s, name));
+        if let Some(sl) = slot {
+            if sl.start > 0.0 || sl.end > 0.0 {
+                let lo = if sl.start > 0.0 { sl.start } else { 0.0 };
+                let hi = if sl.end > 0.0 { sl.end } else { sl.length };
+                left.push_str(&format!(" [{}-{}]", fmt_clock(lo), fmt_clock(hi)));
+            }
+        }
+    }
+    if state.feedback_active {
+        left.push_str(" FB");
+    }
+    if state.function_on {
+        left.push_str(" FN");
+    }
+    left.push(' ');
+
+    // Right: telemetry — fps · detour ring frames · ring memory.
+    let fps = if state.measured_fps > 0.0 {
+        state.measured_fps.round() as u32
+    } else {
+        state.frames_stats_fps
+    };
+    let right = format!(
+        " {fps}fps  RING {}/{}  {}M ",
+        state.frames_stats_count, state.frames_stats_capacity, state.frames_stats_used_mb,
+    );
+
+    let left: String = left.chars().take(COLS - 4).collect();
+    let left_len = left.chars().count();
+    grid.write(ROW_BOTTOM, 2, ATTR_NORMAL, &left);
+
+    let rlen = right.chars().count();
+    let rcol = (COLS - 1).saturating_sub(rlen);
+    if rcol > 2 + left_len {
+        grid.write(ROW_BOTTOM, rcol, ATTR_DIM, &right);
+    }
 }
 
 // ── helpers ──────────────────────────────────────────────────────────────
