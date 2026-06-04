@@ -572,7 +572,13 @@ fn main() -> anyhow::Result<()> {
             }
         }
 
+        // On desktop the window is the only display, so the text grid is
+        // overlaid on the video. On Pi the grid lives on the SPI LCD (flushed
+        // below) and HDMI stays a clean video feed — matching the r_e_c_u_r
+        // hardware design (video out + separate control screen).
+        #[cfg(feature = "desktop")]
         render.draw_text_grid(&grid);
+
         render.end_frame();
 
         #[cfg(all(feature = "pi-base", target_os = "linux"))]
