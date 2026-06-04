@@ -275,10 +275,8 @@ fn main() -> anyhow::Result<()> {
 
     #[cfg(all(feature = "pi-base", not(feature = "desktop"), target_os = "linux"))]
     let mut input = EvdevSource::open_all(keymap).unwrap_or_else(|e| {
-        tracing::warn!("evdev input unavailable: {e}; no input will be processed");
-        // open_all with a fake empty device list isn't possible, so we panic
-        // with a useful message rather than silently running inputless.
-        panic!("evdev: {e}");
+        tracing::warn!("evdev input unavailable: {e} — running without keyboard input");
+        EvdevSource::empty()
     });
 
     #[cfg(not(any(feature = "desktop", all(feature = "pi-base", target_os = "linux"))))]

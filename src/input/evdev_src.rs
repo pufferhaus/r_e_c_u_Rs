@@ -39,6 +39,18 @@ pub struct EvdevSource {
 }
 
 impl EvdevSource {
+    pub fn empty() -> Self {
+        Self {
+            devices: Vec::new(),
+            keymap: Keymap::default(),
+            kp0_pending: Vec::new(),
+            fn_until: None,
+            fn_active: false,
+            last_digit_press: None,
+            numlock_pending: None,
+        }
+    }
+
     pub fn open_all(keymap: Keymap) -> crate::error::Result<Self> {
         let mut devices = Vec::new();
         for entry in std::fs::read_dir("/dev/input")? {
