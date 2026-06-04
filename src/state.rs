@@ -253,9 +253,9 @@ pub struct SharedState {
     /// (bank, slot) of the most recently triggered slot — the "now playing"
     /// indicator in the sampler. `None` until something is triggered / after panic.
     pub now_playing: Option<(u8, u8)>,
-    /// Frames remaining in the trigger flash (set on trigger, counted down each
-    /// frame by the main loop). Drives the brief blink acknowledging a press.
-    pub trigger_flash: u8,
+    /// Free-running frame counter (incremented each frame by the main loop).
+    /// Drives UI animation such as the continuous blink on the playing slot.
+    pub anim_frame: u64,
     pub sampler: SamplerSettings,
     pub paths_to_browser: Vec<PathBuf>,
     pub last_error: Option<String>,
@@ -303,7 +303,7 @@ impl SharedState {
             function_on: false,
             feedback_active: false,
             now_playing: None,
-            trigger_flash: 0,
+            anim_frame: 0,
             sampler: SamplerSettings::default(),
             paths_to_browser: Vec::new(),
             last_error: None,
