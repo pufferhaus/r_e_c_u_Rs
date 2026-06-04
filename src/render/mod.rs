@@ -27,6 +27,7 @@ mod stub {
             _h: u32,
             _t: &str,
             _p: crate::render::shader_assembly::GlesProfile,
+            _shader_dir: &std::path::Path,
         ) -> anyhow::Result<Self> {
             Ok(Self)
         }

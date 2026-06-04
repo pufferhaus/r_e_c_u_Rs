@@ -64,6 +64,10 @@ struct Args {
     #[arg(long, default_value = "keymap.toml")]
     keymap: PathBuf,
 
+    /// Path to shaders directory.
+    #[arg(long, default_value = "shaders")]
+    shader_dir: PathBuf,
+
     /// GLES profile to load shaders against. `pi3`/`v100` filters out 3.10-only
     /// shaders; default `pi5`/`v310` loads all.
     #[arg(long, value_enum, default_value_t = GlesProfileArg::V310)]
@@ -132,7 +136,7 @@ fn main() -> anyhow::Result<()> {
     let _probe_worker = recur::video::ProbeWorker::spawn(probe_req_rx, probe_res_tx);
     state.probe_tx = Some(probe_tx);
 
-    let shader_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("shaders");
+    let shader_dir = args.shader_dir;
     let shader_watcher = recur::shader::ShaderWatcher::start(&shader_dir)
         .map_err(|e| {
             tracing::warn!("shader hot-reload disabled: {e}");
@@ -210,6 +214,7 @@ fn main() -> anyhow::Result<()> {
         cfg.render.height,
         "r_e_c_u_r",
         state.gles_profile,
+        &shader_dir,
     )?;
 
     #[cfg(debug_assertions)]

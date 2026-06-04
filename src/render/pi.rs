@@ -304,6 +304,7 @@ impl PiTarget {
         h: u32,
         _title: &str,
         profile: crate::render::shader_assembly::GlesProfile,
+        shader_dir: &std::path::Path,
     ) -> anyhow::Result<Self> {
         let ctx = PiContext::create(w, h)?;
 
@@ -378,7 +379,7 @@ impl PiTarget {
 
         let text = unsafe { TextOverlay::new(&ctx.gl)? };
 
-        let shaders_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("shaders");
+        let shaders_dir = shader_dir;
         let min_gles = match profile {
             crate::render::shader_assembly::GlesProfile::V100 => crate::shader::GlesVersion::V100,
             crate::render::shader_assembly::GlesProfile::V310 => crate::shader::GlesVersion::V310,

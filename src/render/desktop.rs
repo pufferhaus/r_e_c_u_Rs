@@ -58,6 +58,7 @@ impl WinitGlTarget {
         height: u32,
         title: &str,
         profile: crate::render::shader_assembly::GlesProfile,
+        shader_dir: &std::path::Path,
     ) -> anyhow::Result<Self> {
         let event_loop = EventLoop::new().map_err(|e| anyhow::anyhow!("event loop: {e}"))?;
 
@@ -185,7 +186,7 @@ impl WinitGlTarget {
         // Build text overlay (atlas texture + dynamic VBO + shader)
         let text = unsafe { TextOverlay::new(&gl)? };
 
-        let shaders_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("shaders");
+        let shaders_dir = shader_dir;
         let min_gles = match profile {
             crate::render::shader_assembly::GlesProfile::V100 => crate::shader::GlesVersion::V100,
             crate::render::shader_assembly::GlesProfile::V310 => crate::shader::GlesVersion::V310,
