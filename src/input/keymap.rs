@@ -244,6 +244,8 @@ fn parse_action(s: &str) -> std::result::Result<Action, ()> {
         "Back" => Action::Back,
         "Panic" => Action::Panic,
         "ToggleNowNext" => Action::ToggleNowNext,
+        "PrevMode" => Action::PrevMode,
+        "NextMode" => Action::NextMode,
         "ToggleFunction" => Action::ToggleFunction,
         "FunctionRelease" => Action::FunctionRelease,
         "PrevBank" => Action::PrevBank,
