@@ -34,15 +34,36 @@ pub const QUAD: &[f32] = &[
 ];
 
 // Same geometry, identity V (no vertical flip): uv = (pos+1)/2. Orientation-
-// PRESERVING. Used for intermediate FBO passes (so a shadered frame keeps the
-// same orientation as the passthrough frame) and for the Pi final present
-// (DRM/KMS scans the GBM buffer top-to-bottom, the opposite of GL's
-// bottom-left origin, so the un-flipped quad lands the image right-way-up).
-// Layout: (x, y, u, v)
+// PRESERVING relative to GL's bottom-left origin. Used for intermediate FBO
+// passes so a shadered frame keeps the same orientation as the passthrough
+// frame on every backend. Layout: (x, y, u, v)
 pub const QUAD_NOFLIP: &[f32] = &[
     -1.0, -1.0, 0.0, 0.0, 1.0, -1.0, 1.0, 0.0, -1.0, 1.0, 0.0, 1.0, -1.0, 1.0, 0.0, 1.0, 1.0, -1.0,
     1.0, 0.0, 1.0, 1.0, 1.0, 1.0,
 ];
+
+// `QUAD` horizontally mirrored (u → 1-u). Layout: (x, y, u, v)
+pub const QUAD_FLIP_H: &[f32] = &[
+    -1.0, -1.0, 1.0, 1.0, 1.0, -1.0, 0.0, 1.0, -1.0, 1.0, 1.0, 0.0, -1.0, 1.0, 1.0, 0.0, 1.0, -1.0,
+    0.0, 1.0, 1.0, 1.0, 0.0, 0.0,
+];
+
+// `QUAD` rotated 180° (u → 1-u, v → 1-v). Layout: (x, y, u, v)
+pub const QUAD_ROT180: &[f32] = &[
+    -1.0, -1.0, 1.0, 0.0, 1.0, -1.0, 0.0, 0.0, -1.0, 1.0, 1.0, 1.0, -1.0, 1.0, 1.0, 1.0, 1.0, -1.0,
+    0.0, 0.0, 1.0, 1.0, 0.0, 1.0,
+];
+
+/// Pick the final-present quad by orientation name (`RECUR_VIDEO_ORIENT`):
+/// `normal` (desktop-upright), `flipv`, `fliph`, `rot180`. Unknown → normal.
+pub fn present_quad(orient: &str) -> &'static [f32] {
+    match orient {
+        "flipv" => QUAD_NOFLIP,
+        "fliph" => QUAD_FLIP_H,
+        "rot180" => QUAD_ROT180,
+        _ => QUAD,
+    }
+}
 
 /// Compile a single GLSL shader stage. Shared by desktop and Pi backends.
 ///

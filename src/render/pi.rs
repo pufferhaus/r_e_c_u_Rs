@@ -398,10 +398,13 @@ impl PiTarget {
                 .create_buffer()
                 .map_err(|e| anyhow::anyhow!("create vbo: {e}"))?;
             ctx.gl.bind_buffer(glow::ARRAY_BUFFER, Some(vbo));
-            // DRM/KMS scans the GBM buffer top-to-bottom (opposite GL's
-            // bottom-left origin), so the un-flipped quad presents the image
-            // right-way-up. The shared `QUAD` (flipped) is for desktop/winit.
-            let bytes: &[u8] = bytemuck::cast_slice(shader::QUAD_NOFLIP);
+            // Final-present orientation is selectable at runtime via
+            // RECUR_VIDEO_ORIENT (normal|flipv|fliph|rot180) because the
+            // physical HDMI panel/converter mount varies. Default `normal`.
+            let orient =
+                std::env::var("RECUR_VIDEO_ORIENT").unwrap_or_else(|_| "normal".to_string());
+            tracing::info!(orient = %orient, "video present orientation");
+            let bytes: &[u8] = bytemuck::cast_slice(shader::present_quad(&orient));
             ctx.gl
                 .buffer_data_u8_slice(glow::ARRAY_BUFFER, bytes, glow::STATIC_DRAW);
             vbo
