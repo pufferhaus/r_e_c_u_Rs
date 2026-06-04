@@ -25,3 +25,9 @@ uniform vec2              u_source_0_size;
 
 in  vec2 v_uv;
 out vec4 frag_color;
+
+// Compatibility shims so GLSL ES 1.00-style shader bodies (gl_FragColor,
+// texture2D) compile unchanged under the 3.10 profile. The prelude is the
+// single portability layer; shader files stay authored in the 1.00 idiom.
+#define gl_FragColor frag_color
+#define texture2D    texture
