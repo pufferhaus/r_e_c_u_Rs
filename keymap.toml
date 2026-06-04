@@ -1,6 +1,20 @@
-# Default keyboard bindings.
+# r_e_c_u_r key bindings.
+#
+# Four layers:
+#   [bindings]          base layer (desktop keyboard + USB numpad normal layer)
+#   [fn_bindings]       numpad FN layer, active for one key after a `000` burst
+#   [detour_bindings]   auto-context: active while detour scrub is engaged
+#   [shdrbnk_bindings]  auto-context: active while the shader-bank screen is up
+#
+# USB numpad layout — the pad is mounted rotated 90° CCW. Slots follow physical
+# reading order (top-left = slot 1 … bottom = slot 0), so the slot a key fires
+# is NOT the digit printed on it:
+#
+#   physical key:   9 6 3 / 8 5 2 / 7 4 1 / 0
+#   fires slot:     1 2 3 / 4 5 6 / 7 8 9 / 0
 
 [bindings]
+# ── Desktop keyboard ──────────────────────────────────────────────────────
 "Digit0" = "SelectSlot(0)"
 "Digit1" = "SelectSlot(1)"
 "Digit2" = "SelectSlot(2)"
@@ -52,40 +66,68 @@
 "KeyM" = "DetourCycleMix"
 "KeyC" = "AddCaptureSlot"
 
-# USB numpad bindings (normal layer)
-"Numpad0" = "SelectSlot(0)"
-"Numpad1" = "SelectSlot(1)"
-"Numpad2" = "SelectSlot(2)"
+# ── USB numpad — normal layer (digits = trigger video slot) ───────────────
+"Numpad9" = "SelectSlot(1)"
+"Numpad6" = "SelectSlot(2)"
 "Numpad3" = "SelectSlot(3)"
-"Numpad4" = "SelectSlot(4)"
+"Numpad8" = "SelectSlot(4)"
 "Numpad5" = "SelectSlot(5)"
-"Numpad6" = "SelectSlot(6)"
+"Numpad2" = "SelectSlot(6)"
 "Numpad7" = "SelectSlot(7)"
-"Numpad8" = "SelectSlot(8)"
-"Numpad9" = "SelectSlot(9)"
-"NumpadSubtract" = "PrevBank"
-"NumpadAdd" = "NextBank"
-"NumpadMultiply" = "NavUp"
-"NumpadDivide" = "NavDown"
-"NumpadDecimal" = "TogglePlayPause"
+"Numpad4" = "SelectSlot(8)"
+"Numpad1" = "SelectSlot(9)"
+"Numpad0" = "SelectSlot(0)"
+"NumpadMultiply" = "NavUp"      # ×
+"NumpadDivide" = "NavDown"      # /
+"NumpadSubtract" = "PrevBank"   # −
+"NumpadAdd" = "NextBank"        # +
+"NumpadDecimal" = "TogglePlayPause" # .
 "NumpadEnter" = "Enter"
+"NumLock" = "ToggleNowNext"
 
+# ── USB numpad — FN layer (hold 000, then one key) ────────────────────────
 [fn_bindings]
-# USB numpad FN layer — active after triple-tap KP0 (000 burst)
-"NumpadSubtract" = "EnterMode(Browser)"
-"NumpadAdd" = "EnterMode(Settings)"
-"NumpadMultiply" = "EnterMode(Sampler)"
-"NumpadDivide" = "EnterMode(Shaders)"
-"NumpadDecimal" = "DetourEnter"
+"Numpad9" = "EnterMode(Sampler)"   # slot 1
+"Numpad6" = "EnterMode(Browser)"   # slot 2
+"Numpad3" = "EnterMode(Settings)"  # slot 3
+"Numpad8" = "EnterMode(Shaders)"   # slot 4
+"Numpad5" = "EnterMode(ShdrBnk)"   # slot 5
+"Numpad2" = "DetourEnter"          # slot 6
+"Numpad7" = "SetLoopIn"            # slot 7
+"Numpad4" = "ClearLoop"            # slot 8
+"Numpad1" = "SetLoopOut"           # slot 9
+"Numpad0" = "AddCaptureSlot"       # slot 0
+"NumpadMultiply" = "SeekForward"   # ×
+"NumpadDivide" = "SeekBack"        # /
+"NumpadSubtract" = "ToggleFeedback" # −
+"NumpadAdd" = "RecordToggle"       # +
+"NumpadDecimal" = "Reload"         # .
 "NumpadEnter" = "DetourExit"
 "Backspace" = "Panic"
-"Numpad0" = "ToggleNowNext"
-"Numpad1" = "SetLoopIn"
-"Numpad2" = "RecordToggle"
-"Numpad3" = "AddCaptureSlot"
-"Numpad4" = "SeekBack"
-"Numpad5" = "ToggleFeedback"
-"Numpad6" = "SeekForward"
-"Numpad7" = "SetLoopIn"
-"Numpad8" = "ClearLoop"
-"Numpad9" = "SetLoopOut"
+
+# ── Auto-context — DETOUR scrub (digits become scrub controls) ────────────
+[detour_bindings]
+"Numpad8" = "DetourScrubBy(-1)"       # slot 4
+"Numpad2" = "DetourScrubBy(1)"        # slot 6
+"Numpad4" = "DetourCycleSpeed"        # slot 8
+"Numpad6" = "DetourToggleDirection"   # slot 2
+"Numpad7" = "DetourSetStartMarker"    # slot 7
+"Numpad1" = "DetourSetEndMarker"      # slot 9
+"Numpad5" = "DetourClearMarkers"      # slot 5
+"Numpad9" = "DetourCycleMix"          # slot 1
+"Numpad3" = "DetourTogglePlay"        # slot 3
+"NumpadDecimal" = "DetourTogglePlay"  # .
+"NumpadEnter" = "DetourExit"
+
+# ── Auto-context — SHADER BANK (digits trigger shader slots) ──────────────
+[shdrbnk_bindings]
+"Numpad9" = "TriggerShaderSlot(1)"
+"Numpad6" = "TriggerShaderSlot(2)"
+"Numpad3" = "TriggerShaderSlot(3)"
+"Numpad8" = "TriggerShaderSlot(4)"
+"Numpad5" = "TriggerShaderSlot(5)"
+"Numpad2" = "TriggerShaderSlot(6)"
+"Numpad7" = "TriggerShaderSlot(7)"
+"Numpad4" = "TriggerShaderSlot(8)"
+"Numpad1" = "TriggerShaderSlot(9)"
+"Numpad0" = "TriggerShaderSlot(0)"

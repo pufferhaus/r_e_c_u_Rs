@@ -25,17 +25,30 @@ use crate::state::DisplayMode;
 #[derive(Debug, Deserialize)]
 struct KeymapFile {
     bindings: HashMap<String, String>,
+    /// Secondary layer, active while the numpad `000` FN modifier is held.
     #[serde(default)]
     fn_bindings: HashMap<String, String>,
+    /// Auto-context layer, active while detour scrub is engaged
+    /// (`ControlMode::DetourScrub`). Only the keys present here override the
+    /// base layer; everything else falls through.
+    #[serde(default)]
+    detour_bindings: HashMap<String, String>,
+    /// Auto-context layer, active while the shader-bank screen is shown
+    /// (`DisplayMode::ShdrBnk`). Lets the numpad digits trigger shader slots.
+    #[serde(default)]
+    shdrbnk_bindings: HashMap<String, String>,
 }
 
-/// A loaded keymap: maps raw key-code strings to `Action` values.
-/// `fn_bindings` is a secondary layer used by the evdev source when the
-/// numpad `000` FN modifier is active.
+/// A loaded keymap with a base layer plus three overlays:
+/// - `fn_map`: held-`000` FN layer (numpad).
+/// - `detour_map`: applied in `ControlMode::DetourScrub`.
+/// - `shdrbnk_map`: applied in `DisplayMode::ShdrBnk`.
 #[derive(Debug, Default)]
 pub struct Keymap {
     map: HashMap<String, Action>,
     fn_map: HashMap<String, Action>,
+    detour_map: HashMap<String, Action>,
+    shdrbnk_map: HashMap<String, Action>,
 }
 
 impl Keymap {
@@ -51,19 +64,21 @@ impl Keymap {
             file: "keymap.toml".into(),
             source: e,
         })?;
-        let mut map = HashMap::new();
-        for (key, action_str) in file.bindings {
-            let action = parse_action(&action_str)
-                .map_err(|_| Error::Keymap(format!("{key} = {action_str:?}")))?;
-            map.insert(key, action);
-        }
-        let mut fn_map = HashMap::new();
-        for (key, action_str) in file.fn_bindings {
-            let action = parse_action(&action_str)
-                .map_err(|_| Error::Keymap(format!("[fn_bindings] {key} = {action_str:?}")))?;
-            fn_map.insert(key, action);
-        }
-        Ok(Self { map, fn_map })
+        let parse_table = |table: HashMap<String, String>, label: &str| -> Result<_> {
+            let mut m = HashMap::new();
+            for (key, action_str) in table {
+                let action = parse_action(&action_str)
+                    .map_err(|_| Error::Keymap(format!("[{label}] {key} = {action_str:?}")))?;
+                m.insert(key, action);
+            }
+            Ok(m)
+        };
+        Ok(Self {
+            map: parse_table(file.bindings, "bindings")?,
+            fn_map: parse_table(file.fn_bindings, "fn_bindings")?,
+            detour_map: parse_table(file.detour_bindings, "detour_bindings")?,
+            shdrbnk_map: parse_table(file.shdrbnk_bindings, "shdrbnk_bindings")?,
+        })
     }
 
     /// Look up the `Action` for a raw key-code string, e.g. `"Space"`.
@@ -90,6 +105,30 @@ impl Keymap {
             return Some(Action::DetourTogglePlay);
         }
         Some(base)
+    }
+
+    /// Context-aware base-layer resolution (non-FN path). Applies the detour
+    /// and shader-bank overlays for keys that define them, then falls through
+    /// to the base layer (with the `RecordToggle`→`DetourTogglePlay` override).
+    /// Keys absent from the overlays behave exactly as `lookup_with_mode`.
+    pub fn resolve(
+        &self,
+        key: &str,
+        display_mode: crate::state::DisplayMode,
+        control_mode: crate::state::ControlMode,
+    ) -> Option<Action> {
+        use crate::state::{ControlMode, DisplayMode};
+        if control_mode == ControlMode::DetourScrub {
+            if let Some(a) = self.detour_map.get(key) {
+                return Some(a.clone());
+            }
+        }
+        if display_mode == DisplayMode::ShdrBnk {
+            if let Some(a) = self.shdrbnk_map.get(key) {
+                return Some(a.clone());
+            }
+        }
+        self.lookup_with_mode(key, control_mode)
     }
 }
 
