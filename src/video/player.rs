@@ -204,6 +204,23 @@ impl Player {
         }
     }
 
+    /// Restart the current clip from its loop-in point **without** tearing down
+    /// and rebuilding the pipeline. A `FLUSH` seek re-primes the decoder in
+    /// place, so the live pipeline keeps producing frames within a frame or two
+    /// — no multi-frame black gap like a full `try_load` reload would cause.
+    /// Used by `OnFinish::Repeat` looping.
+    pub fn restart(&mut self) {
+        if self.pipeline.is_none() {
+            return;
+        }
+        self.seek_to_start();
+        if let Some(p) = &self.pipeline {
+            let _ = p.set_state(gst::State::Playing);
+        }
+        self.last_position = 0.0;
+        self.status = PlayerStatus::Playing;
+    }
+
     pub fn unload(&mut self) {
         // If a recording was active when unload was called (e.g. the rack
         // swapped a clip onto this capture player), surface the in-progress

@@ -359,6 +359,50 @@ impl WinitGlTarget {
         }
     }
 
+    /// Redraw the last uploaded video frame without a fresh upload — holds the
+    /// previous frame on screen during a decode gap (loop restart / slot
+    /// switch) so the output freezes for a frame or two instead of flashing
+    /// black. No-op until at least one frame has been uploaded.
+    pub fn redraw_last_video_layer(&mut self, alpha: f32) {
+        if self.last_tex_w == 0 || self.last_tex_h == 0 {
+            return;
+        }
+        unsafe {
+            let gl = &self.gl;
+            let (w, h) = (self.last_tex_w, self.last_tex_h);
+
+            let mut vp = [0i32; 4];
+            gl.get_parameter_i32_slice(glow::VIEWPORT, &mut vp);
+            let (sw, sh) = (vp[2].max(1) as u32, vp[3].max(1) as u32);
+            let t = self.start_time.elapsed().as_secs_f32();
+
+            let shaded = self
+                .pipeline
+                .apply(gl, self.texture, w, h, sw, sh, t)
+                .unwrap_or(self.texture);
+
+            gl.use_program(Some(self.program));
+            gl.active_texture(glow::TEXTURE0);
+            gl.bind_texture(glow::TEXTURE_2D, Some(shaded));
+            gl.uniform_1_i32(self.u_tex.as_ref(), 0);
+            gl.uniform_1_f32(self.u_alpha.as_ref(), alpha);
+
+            gl.bind_buffer(glow::ARRAY_BUFFER, Some(self.vbo));
+            gl.enable_vertex_attrib_array(self.pos_loc);
+            gl.vertex_attrib_pointer_f32(self.pos_loc, 2, glow::FLOAT, false, 16, 0);
+            gl.enable_vertex_attrib_array(self.uv_loc);
+            gl.vertex_attrib_pointer_f32(self.uv_loc, 2, glow::FLOAT, false, 16, 8);
+
+            gl.enable(glow::BLEND);
+            gl.blend_func(glow::SRC_ALPHA, glow::ONE_MINUS_SRC_ALPHA);
+            gl.draw_arrays(glow::TRIANGLES, 0, 6);
+            gl.disable(glow::BLEND);
+
+            gl.disable_vertex_attrib_array(self.pos_loc);
+            gl.disable_vertex_attrib_array(self.uv_loc);
+        }
+    }
+
     /// Alpha-blend `rgba` over the previously drawn video layer at `mix` opacity.
     /// Reuses `draw_video_layer` with `alpha = mix`; early-returns when mix ≤ 0.
     pub fn draw_detour_layer(&mut self, rgba: &[u8], w: u32, h: u32, mix: f32) {

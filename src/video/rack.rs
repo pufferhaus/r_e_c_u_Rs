@@ -138,11 +138,11 @@ impl PlayerRack {
                     }
                 }
                 OnFinish::Repeat => {
-                    if let Some(slot) = self.current.slot.clone() {
-                        if let Err(e) = self.current.try_load(slot) {
-                            warn!("repeat reload failed: {e}");
-                        }
-                    }
+                    // Seek back to the loop-in point on the live pipeline
+                    // instead of reloading — a full `try_load` tears the
+                    // pipeline to NULL and rebuilds it, leaving a multi-frame
+                    // black gap at every loop. `restart` re-primes in place.
+                    self.current.restart();
                 }
                 OnFinish::Nothing => {}
             }

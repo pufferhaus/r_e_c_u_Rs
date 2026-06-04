@@ -45,6 +45,11 @@ impl RenderGate {
             r.draw_video_layer(data, w, h, alpha);
         }
     }
+    fn redraw_last_video_layer(&mut self, alpha: f32) {
+        if let Some(r) = &mut self.0 {
+            r.redraw_last_video_layer(alpha);
+        }
+    }
     fn draw_detour_layer(&mut self, data: &[u8], w: u32, h: u32, alpha: f32) {
         if let Some(r) = &mut self.0 {
             r.draw_detour_layer(data, w, h, alpha);
@@ -595,6 +600,13 @@ fn main() -> anyhow::Result<()> {
                     }
                     render.draw_video_layer(raw, frame.width, frame.height, 1.0);
                 }
+            } else {
+                // No fresh frame this tick (decode gap during a loop restart or
+                // slot switch). Hold the previous frame instead of letting
+                // begin_frame's black clear show through — avoids the 1-frame
+                // black flash. Gated inside the strobe/pause-hidden guard so it
+                // never fills in intentional strobe/PauseHide blanks.
+                render.redraw_last_video_layer(1.0);
             }
         }
 
