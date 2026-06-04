@@ -20,6 +20,9 @@ use recur::video::rack::PlayerRack;
 #[cfg(feature = "desktop")]
 use recur::input::winit_src::WinitSource;
 
+#[cfg(all(feature = "pi-base", not(feature = "desktop"), target_os = "linux"))]
+use recur::input::evdev_src::EvdevSource;
+
 /// CLI alias for the runtime GLES profile (separate from the clap-internal enum
 /// so we can rename without breaking scripts).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
@@ -204,10 +207,16 @@ fn main() -> anyhow::Result<()> {
     #[cfg(feature = "desktop")]
     let mut input = WinitSource::new(keymap);
 
-    // On non-desktop builds (pi feature), no input source is wired yet.
-    // The smoke path produces zero actions each frame regardless.
-    #[cfg(not(feature = "desktop"))]
-    let _ = keymap; // suppress unused warning
+    #[cfg(all(feature = "pi-base", not(feature = "desktop"), target_os = "linux"))]
+    let mut input = EvdevSource::open_all(keymap).unwrap_or_else(|e| {
+        tracing::warn!("evdev input unavailable: {e}; no input will be processed");
+        // open_all with a fake empty device list isn't possible, so we panic
+        // with a useful message rather than silently running inputless.
+        panic!("evdev: {e}");
+    });
+
+    #[cfg(not(any(feature = "desktop", all(feature = "pi-base", target_os = "linux"))))]
+    let _ = keymap;
 
     let mut render = recur::render::Render::new(
         cfg.render.width,
@@ -216,6 +225,11 @@ fn main() -> anyhow::Result<()> {
         state.gles_profile,
         &shader_dir,
     )?;
+
+    #[cfg(all(feature = "pi-base", target_os = "linux"))]
+    let mut panel = recur::status::pi::PiPanelBackend::open()
+        .map_err(|e| tracing::warn!("SPI panel unavailable: {e}"))
+        .ok();
 
     #[cfg(debug_assertions)]
     {
@@ -263,7 +277,10 @@ fn main() -> anyhow::Result<()> {
         #[cfg(feature = "desktop")]
         let actions: Vec<Action> = input.poll(state.control_mode);
 
-        #[cfg(not(feature = "desktop"))]
+        #[cfg(all(feature = "pi-base", not(feature = "desktop"), target_os = "linux"))]
+        let actions: Vec<Action> = input.poll(state.control_mode);
+
+        #[cfg(not(any(feature = "desktop", all(feature = "pi-base", target_os = "linux"))))]
         let actions: Vec<Action> = Vec::new();
 
         for action in actions {
@@ -477,6 +494,11 @@ fn main() -> anyhow::Result<()> {
 
         render.draw_text_grid(&grid);
         render.end_frame();
+
+        #[cfg(all(feature = "pi-base", target_os = "linux"))]
+        if let Some(ref mut p) = panel {
+            p.flush(&grid);
+        }
 
         // 5. Pace the loop
         t_next += frame_dt;
