@@ -6,10 +6,6 @@ use crate::state::{
     SharedState, Slot, SLOTS_PER_BANK,
 };
 
-/// Frames the trigger flash lasts (~0.6 s at 30 fps). The sampler blinks the
-/// playing slot for this long after a trigger to acknowledge the press.
-pub const TRIGGER_FLASH_FRAMES: u8 = 18;
-
 /// Side-effects the mutator needs to push at the player rack. Real
 /// implementation in `crate::video::rack`. Tests use a no-op or spy.
 pub trait RackHandle {
@@ -75,7 +71,6 @@ pub fn apply<R: RackHandle>(action: Action, state: &mut SharedState, rack: &mut 
             state.control_mode = ControlMode::Default;
             state.function_on = false;
             state.now_playing = None;
-            state.trigger_flash = 0;
         }
         Action::EnterMode(m) => {
             state.display_mode = m;
@@ -109,9 +104,8 @@ pub fn apply<R: RackHandle>(action: Action, state: &mut SharedState, rack: &mut 
                 if let Some(bank) = state.banks.get(bank_idx as usize).cloned() {
                     if let Some(slot) = bank.slots.get(n).cloned().flatten() {
                         rack.trigger_slot_with(bank_idx, n as u8, slot, bank);
-                        // "Now playing" indicator + a brief flash acknowledging the press.
+                        // Mark the playing slot; the sampler blinks it continuously.
                         state.now_playing = Some((bank_idx, n as u8));
-                        state.trigger_flash = TRIGGER_FLASH_FRAMES;
                     }
                 }
             }

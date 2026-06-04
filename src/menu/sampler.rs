@@ -43,14 +43,15 @@ impl Screen for SamplerBody {
             let attr = if is_playing { ATTR_BRIGHT } else { ATTR_NORMAL };
             layout::left_row(grid, i, &format!("{marker}{body}"), attr);
 
-            // Trigger flash: blink the playing row on/off for ~0.6 s after a press.
-            let flash_on =
-                is_playing && state.trigger_flash > 0 && (state.trigger_flash / 3) % 2 == 1;
+            // Continuous blink on the playing row: invert on alternating ~0.3 s
+            // half-periods for as long as the clip is the active one.
+            const BLINK_HALF: u64 = 9;
+            let flash_on = is_playing && (state.anim_frame / BLINK_HALF) % 2 == 0;
             if flash_on {
                 layout::invert_left_row(grid, i);
             } else if i == self.selected as usize && !is_playing {
                 // Cursor highlight (suppressed on the playing row, which already
-                // stands out as bright + marked).
+                // stands out as bright + marked + blinking).
                 layout::invert_left_row(grid, i);
             }
         }

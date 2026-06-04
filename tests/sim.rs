@@ -218,9 +218,14 @@ fn simulate_full_ui_walkthrough() {
         sim.rack.triggers.iter().any(|(_, s, n)| *s == 4 && n == "demo.mp4"),
     );
     sim.check("now_playing set to (bank 0, slot 4)", sim.state.now_playing == Some((0, 4)));
-    sim.check("trigger flash armed", sim.state.trigger_flash > 0);
     let marker_cell = sim.render().at(Sim::list_row(4), layout::PANE_L0).ch;
     sim.check("playing row shows '>' marker", marker_cell == '>');
+    // Continuous blink: the playing row's inversion flips between anim phases.
+    sim.state.anim_frame = 0;
+    let phase_a = sim.render().at(Sim::list_row(4), layout::PANE_L0).attr;
+    sim.state.anim_frame = 9; // one half-period later
+    let phase_b = sim.render().at(Sim::list_row(4), layout::PANE_L0).attr;
+    sim.check("playing row keeps blinking (inversion flips each half-period)", phase_a != phase_b);
     sim.check(
         "loops by default (on_finish=Repeat)",
         matches!(sim.state.sampler.on_finish, recur::state::OnFinish::Repeat),
