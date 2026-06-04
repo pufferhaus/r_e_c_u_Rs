@@ -26,10 +26,22 @@ void main() {
 "#;
 
 // Two-triangle quad covering NDC [-1,1] with flipped V (image top = GL bottom).
-// Layout: (x, y, u, v)
+// Used for the final screen present on desktop (winit presents GL bottom-left
+// the right way up). Layout: (x, y, u, v)
 pub const QUAD: &[f32] = &[
     -1.0, -1.0, 0.0, 1.0, 1.0, -1.0, 1.0, 1.0, -1.0, 1.0, 0.0, 0.0, -1.0, 1.0, 0.0, 0.0, 1.0, -1.0,
     1.0, 1.0, 1.0, 1.0, 1.0, 0.0,
+];
+
+// Same geometry, identity V (no vertical flip): uv = (pos+1)/2. Orientation-
+// PRESERVING. Used for intermediate FBO passes (so a shadered frame keeps the
+// same orientation as the passthrough frame) and for the Pi final present
+// (DRM/KMS scans the GBM buffer top-to-bottom, the opposite of GL's
+// bottom-left origin, so the un-flipped quad lands the image right-way-up).
+// Layout: (x, y, u, v)
+pub const QUAD_NOFLIP: &[f32] = &[
+    -1.0, -1.0, 0.0, 0.0, 1.0, -1.0, 1.0, 0.0, -1.0, 1.0, 0.0, 1.0, -1.0, 1.0, 0.0, 1.0, 1.0, -1.0,
+    1.0, 0.0, 1.0, 1.0, 1.0, 1.0,
 ];
 
 /// Compile a single GLSL shader stage. Shared by desktop and Pi backends.

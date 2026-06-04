@@ -13,7 +13,7 @@ use glow::HasContext;
 use crate::error::Result;
 use crate::shader::ShaderLibrary;
 
-use super::shader::{compile_program, QUAD};
+use super::shader::{compile_program, QUAD_NOFLIP};
 use super::shader_assembly::{assemble_fragment_source, vertex_source_for, GlesProfile};
 
 type GlProgram = <glow::Context as HasContext>::Program;
@@ -301,9 +301,11 @@ impl ShaderPipeline {
         }
         let vbo = gl.create_buffer().expect("create vbo");
         gl.bind_buffer(glow::ARRAY_BUFFER, Some(vbo));
+        // FBO passes must preserve orientation so a shadered frame matches the
+        // passthrough frame's vertical orientation on every backend.
         gl.buffer_data_u8_slice(
             glow::ARRAY_BUFFER,
-            bytemuck::cast_slice(QUAD),
+            bytemuck::cast_slice(QUAD_NOFLIP),
             glow::STATIC_DRAW,
         );
         self.vbo = Some(vbo);

@@ -71,45 +71,81 @@ impl PiCard {
         ))
     }
 
-    /// Find a usable display connector.
+    /// Find a usable display connector, deterministically.
     ///
-    /// Priority: composite/TV/SVideo (Pi 3 analog jack) → HDMI (Pi 5).
-    /// Skips explicitly disconnected connectors; accepts Unknown state for
-    /// analog outputs which have no hot-plug detect.
+    /// Priority: composite/TV/SVideo (Pi 3 analog jack) → HDMI (Pi 5). An
+    /// explicit `RECUR_DRM_CONNECTOR` env (e.g. `HDMI-A-2`) overrides selection.
+    ///
+    /// HDMI selection is pinned by a total order so the same port is chosen
+    /// every boot: prefer a connector that is actually *connected*, then one
+    /// that has modes, breaking ties by lowest interface id. This stops the
+    /// output bouncing between HDMI-A-1 and HDMI-A-2 across restarts when the
+    /// kernel cmdline force-modes one port while the cable is in the other.
     fn find_composite_connector(&self) -> Result<connector::Info> {
         let resources = self
             .resource_handles()
             .map_err(|e| Error::Other(format!("drm resources: {e}")))?;
-        let mut hdmi_candidate: Option<connector::Info> = None;
+
+        let want = std::env::var("RECUR_DRM_CONNECTOR").ok();
+        let mut hdmi: Vec<connector::Info> = Vec::new();
+
         for handle in resources.connectors() {
             let info = self
                 .get_connector(*handle, true) // force mode probe
                 .map_err(|e| Error::Other(format!("drm connector: {e}")))?;
+
+            // Explicit override by name wins immediately.
+            if let Some(name) = &want {
+                if connector_name(&info).eq_ignore_ascii_case(name) {
+                    tracing::info!(connector = %connector_name(&info), "display connector (env override)");
+                    return Ok(info);
+                }
+            }
+
             use connector::Interface::*;
             match info.interface() {
                 Composite | TV | SVideo => {
                     // Analog outputs have no hot-plug detect — state is always Unknown.
                     if info.state() != connector::State::Disconnected {
+                        tracing::info!(connector = %connector_name(&info), "display connector (analog)");
                         return Ok(info);
                     }
                 }
-                HDMIA | HDMIB => {
-                    // Accept HDMI connectors regardless of reported state:
-                    // with hdmi_force_hotplug=1 the firmware drives the output
-                    // but the DRM state may still read Disconnected.
-                    // Prefer connectors that actually have modes over bare ones.
-                    if hdmi_candidate.is_none() || !info.modes().is_empty() {
-                        hdmi_candidate = Some(info);
-                    }
-                }
+                HDMIA | HDMIB => hdmi.push(info),
                 _ => {}
             }
         }
-        // Fall back to HDMI (Pi 5 has no composite jack).
-        hdmi_candidate.ok_or_else(|| {
+
+        // Total order: connected first, then has-modes, then lowest interface id.
+        // `sort_by_key` is stable; we sort by a descending-priority tuple via
+        // negation-free keys (false < true, so invert the booleans).
+        hdmi.sort_by(|a, b| {
+            let key = |i: &connector::Info| {
+                (
+                    i.state() != connector::State::Connected, // connected first
+                    i.modes().is_empty(),                     // has-modes first
+                    i.interface_id(),                         // lowest id tiebreak
+                )
+            };
+            key(a).cmp(&key(b))
+        });
+
+        let chosen = hdmi.into_iter().next().ok_or_else(|| {
             Error::Other("no display connector found (tried composite, TV, HDMI)".into())
-        })
+        })?;
+        tracing::info!(
+            connector = %connector_name(&chosen),
+            state = ?chosen.state(),
+            modes = chosen.modes().len(),
+            "display connector"
+        );
+        Ok(chosen)
     }
+}
+
+/// Kernel-style connector name, e.g. `HDMI-A-1`, `Composite-1`.
+fn connector_name(info: &connector::Info) -> String {
+    format!("{}-{}", info.interface().as_str(), info.interface_id())
 }
 
 // ── GBM framebuffer adapter ───────────────────────────────────────────────────
@@ -362,7 +398,10 @@ impl PiTarget {
                 .create_buffer()
                 .map_err(|e| anyhow::anyhow!("create vbo: {e}"))?;
             ctx.gl.bind_buffer(glow::ARRAY_BUFFER, Some(vbo));
-            let bytes: &[u8] = bytemuck::cast_slice(shader::QUAD);
+            // DRM/KMS scans the GBM buffer top-to-bottom (opposite GL's
+            // bottom-left origin), so the un-flipped quad presents the image
+            // right-way-up. The shared `QUAD` (flipped) is for desktop/winit.
+            let bytes: &[u8] = bytemuck::cast_slice(shader::QUAD_NOFLIP);
             ctx.gl
                 .buffer_data_u8_slice(glow::ARRAY_BUFFER, bytes, glow::STATIC_DRAW);
             vbo
